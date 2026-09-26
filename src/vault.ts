@@ -3,16 +3,30 @@
 // migration. There is no database: schemaVersion + migrate() is the whole
 // migration surface.
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export type Child = { name: string; birthDate: string | null };
+
+// A photo, recompressed in the browser before it is embedded. dataUrl is a
+// JPEG data URL; bytes is its decoded payload size, tracked for the budget.
+export type Photo = {
+  id: string;
+  dataUrl: string;
+  caption: string; // free text, may be ""
+  w: number; // recompressed pixel width
+  h: number; // recompressed pixel height
+  bytes: number; // recompressed size in bytes
+  [extra: string]: unknown; // unknown future fields preserved, not dropped
+};
 
 export type Entry = {
   id: string;
   type: "letter";
   createdAt: string; // ISO
+  occasion: string; // free text, may be "" (added in v2)
   title: string;
   body: string; // plain text
+  photos: Photo[]; // may be [] (added in v2)
   [extra: string]: unknown; // unknown future fields preserved, not dropped
 };
 
@@ -50,21 +64,54 @@ export function emptyVault(): Vault {
   };
 }
 
-// Forward-only. Version 1 is the baseline, so migration is the identity.
-// Later EPICs add cases that raise the version and add fields, never mutate
-// the meaning of an existing field.
+// Forward-only. Each case raises the version and adds fields, never mutating
+// the meaning of an existing field. A file that reaches an older shell hits
+// the newer-version error state instead of silently losing its new fields.
 export function migrate(raw: Record<string, unknown>): Record<string, unknown> {
   const version = raw.schemaVersion as number;
   let data = raw;
   if (version < 1) {
     throw new VaultParseError("This file is older than any version we know.");
   }
-  // future: if (data.schemaVersion === 1) { data = migrateV1toV2(data); }
+  if (data.schemaVersion === 1) {
+    data = migrateV1toV2(data);
+  }
   return data;
+}
+
+// v1 entries had no occasion or photos. Fill both with empty defaults so every
+// entry carries the v2 shape; existing fields are untouched.
+function migrateV1toV2(data: Record<string, unknown>): Record<string, unknown> {
+  const entries = Array.isArray(data.entries)
+    ? data.entries.map((entry) => {
+        if (!isObject(entry)) return entry; // validateEntry will reject it
+        const next = { ...entry };
+        if (!("occasion" in next)) next.occasion = "";
+        if (!("photos" in next)) next.photos = [];
+        return next;
+      })
+    : data.entries;
+  return { ...data, entries, schemaVersion: 2 };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function validatePhoto(value: unknown): Photo {
+  if (!isObject(value)) throw new VaultParseError("A photo is not readable.");
+  if (typeof value.id !== "string") throw new VaultParseError("A photo is missing its id.");
+  if (typeof value.dataUrl !== "string") throw new VaultParseError("A photo is missing its image.");
+  if (typeof value.caption !== "string")
+    throw new VaultParseError("A photo caption is not readable.");
+  if (!isFiniteNumber(value.w) || !isFiniteNumber(value.h))
+    throw new VaultParseError("A photo size is not readable.");
+  if (!isFiniteNumber(value.bytes)) throw new VaultParseError("A photo size is not readable.");
+  return value as unknown as Photo;
 }
 
 function validateEntry(value: unknown): Entry {
@@ -73,9 +120,14 @@ function validateEntry(value: unknown): Entry {
   if (value.type !== "letter") throw new VaultParseError("An entry has an unknown type.");
   if (typeof value.createdAt !== "string")
     throw new VaultParseError("An entry is missing its date.");
+  if (typeof value.occasion !== "string")
+    throw new VaultParseError("An entry's occasion is not readable.");
   if (typeof value.title !== "string") throw new VaultParseError("An entry is missing its title.");
   if (typeof value.body !== "string") throw new VaultParseError("An entry is missing its text.");
-  return value as unknown as Entry;
+  if (!Array.isArray(value.photos)) throw new VaultParseError("An entry's photos are not readable.");
+  // Validate each photo; keep the entry's own object so unknown fields survive.
+  const photos = value.photos.map(validatePhoto);
+  return { ...value, photos } as unknown as Entry;
 }
 
 function validateChild(value: unknown): Child | null {

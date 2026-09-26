@@ -53,8 +53,16 @@ function ordered(obj: Record<string, unknown>, knownOrder: string[]): Record<str
   return out;
 }
 
+function orderPhoto(photo: Record<string, unknown>): Record<string, unknown> {
+  return ordered(photo, ["id", "dataUrl", "caption", "w", "h", "bytes"]);
+}
+
 function orderEntry(entry: Record<string, unknown>): Record<string, unknown> {
-  return ordered(entry, ["id", "type", "createdAt", "title", "body"]);
+  const out = ordered(entry, ["id", "type", "createdAt", "occasion", "title", "body", "photos"]);
+  if (Array.isArray(out.photos)) {
+    out.photos = out.photos.map((p) => orderPhoto(p as Record<string, unknown>));
+  }
+  return out;
 }
 
 function orderVault(vault: Vault): Record<string, unknown> {
