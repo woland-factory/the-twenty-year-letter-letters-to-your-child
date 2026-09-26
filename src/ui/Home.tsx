@@ -30,11 +30,13 @@ export function Home({
   now,
   onWrite,
   onOpenEntry,
+  onOpenBook,
 }: {
   vault: Vault;
   now: Date;
   onWrite: () => void;
   onOpenEntry: (id: string) => void;
+  onOpenBook: () => void;
 }) {
   const empty = vault.entries.length === 0;
 
@@ -111,9 +113,14 @@ export function Home({
               );
             })}
           </ul>
-          <button type="button" class="btn btn-primary btn-block" onClick={onWrite}>
-            Write a letter
-          </button>
+          <div class="archive-actions">
+            <button type="button" class="btn btn-primary btn-block" onClick={onWrite}>
+              Write a letter
+            </button>
+            <button type="button" class="btn btn-secondary btn-block" onClick={onOpenBook}>
+              Open the book
+            </button>
+          </div>
         </>
       )}
     </main>

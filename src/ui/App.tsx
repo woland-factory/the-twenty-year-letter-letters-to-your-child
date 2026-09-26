@@ -22,6 +22,7 @@ import {
 } from "../seal";
 import { decodeQrFromFile, QrDecodeError } from "../qr";
 import { Home } from "./Home";
+import { BookView } from "./BookView";
 import { Editor } from "./Editor";
 import { SealDialog } from "./SealDialog";
 import { KeySheet } from "./KeySheet";
@@ -41,7 +42,7 @@ const BAD_WORDS_MSG = "Those words do not match. Check each word and try again."
 const WRONG_KEY_MSG = "That key does not open this letter. Check you have the right key sheet.";
 const QR_NOT_FOUND_MSG = "The code did not scan. Try a clearer photo of your key sheet.";
 
-type Route = "home" | "editor" | "unseal";
+type Route = "home" | "editor" | "unseal" | "book";
 type SealContext = { words: string[]; keyHint: string };
 
 function unsealMessageFor(err: unknown): string {
@@ -135,6 +136,10 @@ export function App({
 
   function backToLetters() {
     setRoute("home");
+  }
+
+  function openBook() {
+    setRoute("book");
   }
 
   // Photo bytes already committed to the file that this save will keep. When
@@ -379,7 +384,16 @@ export function App({
         Skip to content
       </a>
       {route === "home" && (
-        <Home vault={vault} now={now} onWrite={openWrite} onOpenEntry={openEntry} />
+        <Home
+          vault={vault}
+          now={now}
+          onWrite={openWrite}
+          onOpenEntry={openEntry}
+          onOpenBook={openBook}
+        />
+      )}
+      {route === "book" && (
+        <BookView vault={vault} onBack={backToLetters} onWrite={openWrite} />
       )}
       {route === "editor" && (
         <Editor
