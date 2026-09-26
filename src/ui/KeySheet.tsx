@@ -3,8 +3,9 @@
 // the key is not in the file. Dismissing it clears the words from memory, so
 // this screen is the single moment the key exists for the parent.
 
-import { useMemo } from "preact/hooks";
+import { useMemo, useRef } from "preact/hooks";
 import { qrSvg } from "../qr";
+import { useDialogFocus } from "./useDialogFocus";
 
 export function KeySheet({
   words,
@@ -16,6 +17,11 @@ export function KeySheet({
   onDismiss: () => void;
 }) {
   const svg = useMemo(() => qrSvg(words.join(" ")), [words]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Move focus into the sheet on open, trap Tab within it, and return focus to
+  // the trigger on close.
+  useDialogFocus(dialogRef);
 
   return (
     <div class="backdrop key-sheet-backdrop" role="presentation">
@@ -24,6 +30,8 @@ export function KeySheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby="key-sheet-title"
+        tabIndex={-1}
+        ref={dialogRef}
       >
         <h2 id="key-sheet-title">Your key for this letter</h2>
         <p class="key-sheet-note">Print this page and keep it safe. This key is not saved in your file.</p>

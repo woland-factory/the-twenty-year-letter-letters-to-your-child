@@ -5,6 +5,7 @@
 // and backdrop cancel (never confirm).
 
 import { useEffect, useRef, useState } from "preact/hooks";
+import { useDialogFocus } from "./useDialogFocus";
 
 export function SealDialog({
   onConfirm,
@@ -18,10 +19,12 @@ export function SealDialog({
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
-  // Move focus into the dialog on open, onto Cancel (never the confirm button),
-  // and send Escape to cancel. Return focus is handled by the editor re-render.
+  // Open focus onto Cancel (never the confirm button), trap Tab within the
+  // dialog, and return focus to the trigger on close.
+  useDialogFocus(dialogRef, cancelRef);
+
+  // Escape cancels, it never confirms.
   useEffect(() => {
-    cancelRef.current?.focus();
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault();

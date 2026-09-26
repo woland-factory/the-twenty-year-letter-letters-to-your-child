@@ -249,6 +249,59 @@ test.describe("seal details", () => {
     await expect(page.getByLabel("Title")).toHaveValue("Deliberate");
   });
 
+  test("the seal dialog opens focus on the safe control, traps it, and returns it", async ({
+    page,
+  }) => {
+    await page.addInitScript(MOCK_FSA);
+    await page.goto(ARTIFACT_URL);
+
+    await page.getByRole("button", { name: "Write a letter" }).click();
+    await page.getByLabel("Title").fill("Focus");
+    await page.getByLabel("Your letter").fill("body");
+
+    const trigger = page.getByRole("button", { name: "Seal this letter" });
+    await trigger.click();
+
+    // Focus opens on Cancel, never the confirm button.
+    const cancel = page.getByRole("button", { name: "Keep it open" });
+    await expect(cancel).toBeFocused();
+
+    // Tab stays inside the dialog: from the last control it wraps to the first,
+    // and Shift+Tab wraps back. It never reaches the editor behind the backdrop.
+    await page.keyboard.press("Tab");
+    await expect(page.getByLabel("Where will you keep the key?")).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(cancel).toBeFocused();
+
+    // Closing returns focus to the control that opened it.
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("alertdialog")).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
+  test("the key sheet moves focus into itself on open and traps it", async ({ page }) => {
+    await page.addInitScript(MOCK_FSA);
+    await page.goto(ARTIFACT_URL);
+
+    await performSeal(page, "chromium", {
+      title: "Focus sheet",
+      body: "one page",
+      keyHint: "the drawer",
+    });
+
+    // Focus is inside the sheet on open, not left on the editor behind it.
+    const sheet = page.locator(".key-sheet");
+    await expect(sheet).toBeFocused();
+
+    // Tab cycles within the sheet's own controls.
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "Print this key" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "I have saved the key" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "Print this key" })).toBeFocused();
+  });
+
   test("the key sheet prints on one page with app chrome hidden", async ({ page }) => {
     await page.addInitScript(MOCK_FSA);
     await page.goto(ARTIFACT_URL);
