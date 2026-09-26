@@ -329,6 +329,82 @@ p {
   font-weight: 600;
 }
 
+/* First-run walkthrough: a non-modal coach strip pinned to the bottom. It sits
+   below the dialog backdrop's z-index so any real dialog stays above it. */
+.walk {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  background: var(--paper-raised);
+  border-top: 1px solid var(--line);
+  padding: 0.75rem 1.1rem;
+  box-shadow: 0 -2px 12px rgba(30, 26, 22, 0.06);
+}
+
+.walk-inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.9rem;
+}
+
+.walk-step {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+  flex-basis: 100%;
+}
+
+.walk-line {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.05rem;
+  font-weight: 600;
+  flex: 1 1 12rem;
+}
+
+.walk-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+/* The control ring: points the eye at the current step's real control without
+   changing its size or position, and never overrides :focus-visible. */
+.walk-highlight {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius);
+  animation: walk-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes walk-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(122, 92, 62, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(122, 92, 62, 0);
+  }
+}
+
+/* Make room so the pinned strip never covers the page's own primary action. */
+body.walk-open .page {
+  padding-bottom: 9rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .walk-highlight {
+    animation: none;
+  }
+}
+
 /* Dialog */
 .backdrop {
   position: fixed;
@@ -954,7 +1030,8 @@ p {
     border-radius: 0;
     background: none;
   }
-  .no-print {
+  .no-print,
+  .walk {
     display: none !important;
   }
   /* Keep a heading with the text that follows it, and never split a photo. */

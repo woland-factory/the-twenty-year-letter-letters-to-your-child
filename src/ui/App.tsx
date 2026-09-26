@@ -2,8 +2,10 @@
 // the interview, and the unseal view, owns the vault in memory, and drives every
 // save and seal path to a calm, truthful outcome.
 
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { Vault, Photo, Entry, InterviewAnswer } from "../vault";
+import { firstRunPending, WALK_STEPS, type WalkStep } from "../walkthrough";
+import { Walkthrough } from "./Walkthrough";
 import { SaveController } from "../save";
 import { randomId } from "../ids";
 import {
@@ -53,6 +55,13 @@ const QR_NOT_FOUND_MSG = "The code did not scan. Try a clearer photo of your key
 type Route = "home" | "editor" | "interview" | "unseal" | "book";
 type SealContext = { words: string[]; keyHint: string };
 type SealTarget = "letter" | "interview";
+
+// The outgoing vault records that first-run is done, so reopening the saved
+// file never shows the walkthrough again. Idempotent: an already-flagged vault
+// is returned unchanged.
+function withFirstRunDone(v: Vault): Vault {
+  return v.firstRunDone ? v : { ...v, firstRunDone: true };
+}
 
 function unsealMessageFor(err: unknown): string {
   if (err instanceof QrDecodeError) return QR_NOT_FOUND_MSG;
@@ -115,6 +124,17 @@ export function App({
   // reappear after a real interview is saved.
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
+  // First-run walkthrough. Session state, seeded once at mount from the pure
+  // predicate. It is never recomputed from the vault after saves, so the parent
+  // is not thrown out of the walk the instant their first save flips
+  // firstRunDone. Only Skip or completing the seal turns it off.
+  const [walkActive, setWalkActive] = useState<boolean>(firstRunPending(initialVault));
+  const [walkStep, setWalkStep] = useState<WalkStep>("write");
+
+  function advanceFromBackup() {
+    if (walkActive && walkStep === "backup") setWalkStep("seal");
+  }
+
   // Unseal state. The revealed payload lives only here, for display; it is never
   // written back to the vault.
   const [unsealEntry, setUnsealEntry] = useState<Entry | null>(null);
@@ -150,6 +170,8 @@ export function App({
     setEditingId(null);
     resetDraft();
     setRoute("editor");
+    // The parent acted on "Write a letter"; move to the save step.
+    if (walkActive && walkStep === "write") setWalkStep("save");
   }
 
   function seedInterview(age: number) {
@@ -327,9 +349,10 @@ export function App({
   async function runSave() {
     setPhase("saving");
     setSaveError(null);
-    const { next, entryId } = buildVaultWithDraft();
+    const built = buildVaultWithDraft();
+    const next = withFirstRunDone(built.next);
     const result = await controller.save(next);
-    applyResult(result, next, entryId, null);
+    applyResult(result, next, built.entryId, null);
   }
 
   // The child record to save alongside an interview: a captured birth date is
@@ -350,16 +373,17 @@ export function App({
     setPhase("saving");
     setSaveError(null);
     const base = { ...vault, child: childForInterviewSave() };
-    const { next, entryId } = foldInterview(
+    const folded = foldInterview(
       base,
       interviewDraft(),
       interviewEditingId,
       randomId(),
       now.toISOString(),
     );
+    const next = withFirstRunDone(folded.next);
     const result = await controller.save(next);
-    if (result.status === "saved") setInterviewEditingId(entryId);
-    applyResult(result, next, entryId, null);
+    if (result.status === "saved") setInterviewEditingId(folded.entryId);
+    applyResult(result, next, folded.entryId, null);
   }
 
   function openSealDialog(target: SealTarget) {
@@ -415,9 +439,10 @@ export function App({
     }
     const ctx: SealContext = { words, keyHint };
     setSealCtx(ctx); // held across the save, and across a stale prompt if one appears
-    const { next, entryId } = foldSealed(base, sealed, sealEditingId, randomId(), now.toISOString());
+    const folded = foldSealed(base, sealed, sealEditingId, randomId(), now.toISOString());
+    const next = withFirstRunDone(folded.next);
     const saveResult = await controller.save(next);
-    applyResult(saveResult, next, entryId, ctx);
+    applyResult(saveResult, next, folded.entryId, ctx);
   }
 
   function applyResult(
@@ -438,11 +463,16 @@ export function App({
         resetDraft();
         setRoute("home");
         setKeySheet(seal);
+        // The first seal completed; the walk is done and the key sheet is the
+        // payoff the parent now holds.
+        if (walkActive) setWalkActive(false);
       } else {
         setPhase("saved");
         if (result.via === "download" && result.vault.savedAt) {
           setRitual({ generation: result.vault.generation, savedAt: result.vault.savedAt });
         }
+        // The first save just succeeded; point the parent at the saved copy.
+        if (walkActive && walkStep === "save") setWalkStep("backup");
       }
     } else if (result.status === "stale") {
       setPending(attempted);
@@ -558,6 +588,28 @@ export function App({
 
   const nudge = birthdayNudge(vault, now);
 
+  // Walk render inputs, derived from the session flag, the step, and the route.
+  // The strip is hidden while a blocking dialog is open so it never fights one.
+  const showWalk = walkActive && !sealDialog && !keySheet && !stale;
+  const highlightWrite = walkActive && walkStep === "write" && route === "home";
+  const editorHighlight: "save" | "backup" | "seal" | null =
+    walkActive && route === "editor"
+      ? walkStep === "save"
+        ? "save"
+        : walkStep === "backup"
+          ? "backup"
+          : walkStep === "seal"
+            ? "seal"
+            : null
+      : null;
+
+  // Reserve space at the bottom of the page while the strip is pinned there, so
+  // it never covers the screen's own primary action.
+  useEffect(() => {
+    document.body.classList.toggle("walk-open", showWalk);
+    return () => document.body.classList.remove("walk-open");
+  }, [showWalk]);
+
   return (
     <>
       <a class="skip" href="#main">
@@ -574,6 +626,7 @@ export function App({
           onOpenInterview={openInterview}
           onOpenBook={openBook}
           onDismissNudge={() => setNudgeDismissed(true)}
+          highlightWrite={highlightWrite}
         />
       )}
       {route === "book" && (
@@ -605,6 +658,7 @@ export function App({
           onSave={runSave}
           onSeal={() => openSealDialog("letter")}
           onBack={backToLetters}
+          highlight={editorHighlight}
         />
       )}
       {route === "interview" && (
@@ -666,7 +720,23 @@ export function App({
         <BackupRitual
           generation={ritual.generation}
           savedAt={ritual.savedAt}
-          onDone={() => setRitual(null)}
+          onDone={() => {
+            setRitual(null);
+            // Closing the download-path backup dialog also acknowledges the
+            // walk's backup step.
+            advanceFromBackup();
+          }}
+        />
+      )}
+
+      {showWalk && (
+        <Walkthrough
+          step={walkStep}
+          stepNumber={WALK_STEPS.indexOf(walkStep) + 1}
+          totalSteps={WALK_STEPS.length}
+          canAdvance={walkStep === "backup"}
+          onAdvance={advanceFromBackup}
+          onSkip={() => setWalkActive(false)}
         />
       )}
     </>

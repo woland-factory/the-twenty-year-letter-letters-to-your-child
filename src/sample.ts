@@ -90,7 +90,10 @@ export function sampleVault(): Vault {
         },
       },
     ],
-    firstRunDone: false,
+    // The demo already carries entries, so the walkthrough would not show
+    // regardless. Setting this true states the intent plainly: a reviewer
+    // opening the demo is never caught in the first-run walk.
+    firstRunDone: true,
   };
 }
 

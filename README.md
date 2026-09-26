@@ -30,6 +30,10 @@ try a live copy.
 - **A yearly interview that grows with your child.** Once a year, answer a short
   set of questions chosen for your child's age. A calm birthday reminder keeps the
   ritual going, and each interview sits next to that year's letters in the book.
+- **A first-run guide that walks you through it.** A brand-new parent is led one
+  step at a time through writing a letter, saving it to their own file, and
+  sealing one. It points at the real buttons, skips at any step, and goes away for
+  good once you save or seal.
 
 ## Run it
 
@@ -119,6 +123,7 @@ src/
   photos.ts           client-side recompression, size math, photo budget
   entries.ts          archive ordering, folding drafts, interviews, sealed entries
   interview.ts        age-aware prompt pack, age math, birthday nudge
+  walkthrough.ts      first-run step order, step copy, and the boot predicate
   seal.ts             AES-GCM seal and unseal, key generation
   mnemonic.ts         the key as 24 BIP39 words, and back
   qr.ts               QR encode for the key sheet, QR decode for unsealing
@@ -126,6 +131,7 @@ src/
   ui/                 Preact components: home, editor, seal, key sheet, unseal
   ui/InterviewView.tsx the yearly interview: birth-date capture and prompt form
   ui/BookView.tsx     the printable book: unsealed letters typeset for print
+  ui/Walkthrough.tsx  the non-modal first-run coach strip
 site/                 landing page and its assembler
 scripts/              site build, static server, e2e wrapper, container entry
 tests/unit            Vitest unit and integration tests

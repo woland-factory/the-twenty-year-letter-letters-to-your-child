@@ -60,6 +60,7 @@ export function Home({
   onOpenInterview,
   onOpenBook,
   onDismissNudge,
+  highlightWrite = false,
 }: {
   vault: Vault;
   now: Date;
@@ -70,8 +71,10 @@ export function Home({
   onOpenInterview: () => void;
   onOpenBook: () => void;
   onDismissNudge: () => void;
+  highlightWrite?: boolean;
 }) {
   const empty = vault.entries.length === 0;
+  const writeClass = `btn btn-primary${highlightWrite ? " walk-highlight" : ""}`;
 
   return (
     <main class="page" id="main">
@@ -83,7 +86,7 @@ export function Home({
         <div class="state">
           <h1>Write your first letter.</h1>
           <p>It saves to your own file and stays with you.</p>
-          <button type="button" class="btn btn-primary" onClick={onWrite}>
+          <button type="button" class={writeClass} onClick={onWrite}>
             Write a letter
           </button>
         </div>
@@ -172,7 +175,7 @@ export function Home({
             })}
           </ul>
           <div class="archive-actions">
-            <button type="button" class="btn btn-primary btn-block" onClick={onWrite}>
+            <button type="button" class={`${writeClass} btn-block`} onClick={onWrite}>
               Write a letter
             </button>
             <button type="button" class="btn btn-secondary btn-block" onClick={onOpenInterview}>

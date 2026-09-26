@@ -32,6 +32,7 @@ export function Editor({
   onSave,
   onSeal,
   onBack,
+  highlight = null,
 }: {
   title: string;
   occasion: string;
@@ -47,6 +48,7 @@ export function Editor({
   sealingReady: boolean;
   sealing: boolean;
   sealMessage: string | null;
+  highlight?: "save" | "backup" | "seal" | null;
   onTitle: (v: string) => void;
   onOccasion: (v: string) => void;
   onBody: (v: string) => void;
@@ -202,12 +204,14 @@ export function Editor({
         canSave={canSave}
         onSave={onSave}
         onBack={onBack}
+        highlightSave={highlight === "save"}
+        highlightBackup={highlight === "backup"}
       />
 
       <div class="seal-zone">
         <button
           type="button"
-          class="btn btn-tertiary btn-block"
+          class={`btn btn-tertiary btn-block${highlight === "seal" ? " walk-highlight" : ""}`}
           onClick={onSeal}
           disabled={!canSeal}
         >

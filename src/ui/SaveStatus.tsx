@@ -13,6 +13,8 @@ export function SaveControls({
   onSave,
   onBack,
   saveLabel = "Save",
+  highlightSave = false,
+  highlightBackup = false,
 }: {
   phase: SavePhase;
   error: string | null;
@@ -21,13 +23,15 @@ export function SaveControls({
   onSave: () => void;
   onBack: () => void;
   saveLabel?: string;
+  highlightSave?: boolean;
+  highlightBackup?: boolean;
 }) {
   return (
     <div>
       <div class="editor-actions">
         <button
           type="button"
-          class="btn btn-primary"
+          class={`btn btn-primary${highlightSave ? " walk-highlight" : ""}`}
           onClick={onSave}
           disabled={phase === "saving" || !canSave}
         >
@@ -38,7 +42,11 @@ export function SaveControls({
         </button>
       </div>
       {hint && phase === "idle" && <p class="muted">{hint}</p>}
-      <div class="save-status" role="status" aria-live="polite">
+      <div
+        class={`save-status${highlightBackup ? " walk-highlight" : ""}`}
+        role="status"
+        aria-live="polite"
+      >
         {phase === "saved" && (
           <span class="save-status-saved">Saved. Your file is up to date.</span>
         )}
