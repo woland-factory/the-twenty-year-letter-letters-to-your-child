@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { foldDraft, foldSealed, isSealed, sortedEntries, unsealedEntries } from "../../src/entries";
+import {
+  bookEntries,
+  foldDraft,
+  foldSealed,
+  isSealed,
+  sortedEntries,
+  unsealedEntries,
+} from "../../src/entries";
 import { emptyVault, type Entry, type Photo, type Sealed, type Vault } from "../../src/vault";
 
 function photo(id: string): Photo {
@@ -42,6 +49,50 @@ describe("sortedEntries", () => {
     const list = [entry("a", "2026-01-01T00:00:00.000Z"), entry("b", "2026-02-01T00:00:00.000Z")];
     const before = list.map((e) => e.id);
     sortedEntries(list);
+    expect(list.map((e) => e.id)).toEqual(before);
+  });
+});
+
+describe("bookEntries", () => {
+  const SEALED: Sealed = {
+    iv: "AAAAAAAAAAAAAAAA",
+    ciphertext: "Y2lwaGVydGV4dA==",
+    keyHint: "In the birthday card",
+    sealedAt: "2026-09-26T00:00:00.000Z",
+  };
+
+  it("returns unsealed entries oldest first", () => {
+    const a = entry("a", "2026-01-01T00:00:00.000Z");
+    const b = entry("b", "2026-06-01T00:00:00.000Z");
+    const c = entry("c", "2026-03-01T00:00:00.000Z");
+    expect(bookEntries([a, b, c]).map((e) => e.id)).toEqual(["a", "c", "b"]);
+  });
+
+  it("excludes sealed entries", () => {
+    const open = entry("a", "2026-01-01T00:00:00.000Z");
+    const sealed: Entry = { ...entry("b", "2026-02-01T00:00:00.000Z"), sealed: SEALED };
+    expect(bookEntries([open, sealed]).map((e) => e.id)).toEqual(["a"]);
+  });
+
+  it("returns [] when every entry is sealed", () => {
+    const s1: Entry = { ...entry("a", "2026-01-01T00:00:00.000Z"), sealed: SEALED };
+    const s2: Entry = { ...entry("b", "2026-02-01T00:00:00.000Z"), sealed: SEALED };
+    expect(bookEntries([s1, s2])).toEqual([]);
+  });
+
+  it("breaks ties on id deterministically", () => {
+    const t = "2026-01-01T00:00:00.000Z";
+    expect(bookEntries([entry("z", t), entry("x", t), entry("m", t)]).map((e) => e.id)).toEqual([
+      "m",
+      "x",
+      "z",
+    ]);
+  });
+
+  it("does not mutate the input array", () => {
+    const list = [entry("b", "2026-02-01T00:00:00.000Z"), entry("a", "2026-01-01T00:00:00.000Z")];
+    const before = list.map((e) => e.id);
+    bookEntries(list);
     expect(list.map((e) => e.id)).toEqual(before);
   });
 });

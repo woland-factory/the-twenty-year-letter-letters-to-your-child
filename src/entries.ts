@@ -69,6 +69,20 @@ export function unsealedEntries(entries: Entry[]): Entry[] {
   return entries.filter((e) => !isSealed(e));
 }
 
+// The book's reading order: unsealed letters, oldest first, so the book grows
+// from the earliest letter toward the newest, like a family book that thickens
+// over the years. A stable tiebreak on id keeps the order steady across
+// renders. The archive keeps its own newest-first order (sortedEntries).
+export function bookEntries(entries: Entry[]): Entry[] {
+  return unsealedEntries(entries)
+    .slice()
+    .sort((a, b) => {
+      if (a.createdAt < b.createdAt) return -1;
+      if (a.createdAt > b.createdAt) return 1;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
+}
+
 // Fold a sealed blob into the vault, mirroring foldDraft. Editing replaces the
 // target entry in place, keeping its id and createdAt but emptying every content
 // field and setting the sealed blob, so its plaintext and photos leave the file.

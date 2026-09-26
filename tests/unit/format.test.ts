@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatBookDate,
   formatCopyLine,
   formatEntryCount,
   formatFullMoment,
@@ -37,6 +38,21 @@ describe("formatSavedMoment", () => {
 describe("formatFullMoment", () => {
   it("renders the download-ritual identity", () => {
     expect(formatFullMoment("2026-03-03T21:14:00")).toBe("March 3, 2026 at 9:14 PM");
+  });
+});
+
+describe("formatBookDate", () => {
+  it("prints a clean date with no clock and no 'today'", () => {
+    expect(formatBookDate("2026-03-03T21:14:00")).toBe("March 3, 2026");
+  });
+
+  it("does not read the current day into the result", () => {
+    // Same ISO as a 'today' case for formatSavedMoment, but the book never says today.
+    expect(formatBookDate("2026-03-03T00:05:00")).toBe("March 3, 2026");
+  });
+
+  it("returns a plain fallback for an unparseable date", () => {
+    expect(formatBookDate("not a date")).toBe("an undated day");
   });
 });
 

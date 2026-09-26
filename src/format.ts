@@ -47,3 +47,12 @@ export function formatFullMoment(iso: string): string {
 export function formatCopyLine(generation: number): string {
   return `This is copy ${generation}.`;
 }
+
+// The date the book prints under each letter: a clean "March 3, 2026" with no
+// clock and no "today", since "today at 9:14 PM" reads wrong in a printed book.
+// An unparseable date returns a plain fallback rather than "Invalid Date".
+export function formatBookDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "an undated day";
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
