@@ -20,6 +20,10 @@ try a live copy.
 - **Saving is the point.** Every save ends in a plain confirmation that your
   file is up to date, and the file always shows which copy is the real one, so
   you never fear losing a letter.
+- **Seal a letter with a paper key.** Lock a letter in the browser with a random
+  key that never touches the file. Its key prints as 24 words and a QR code for
+  the birthday card or a drawer. Years later the words or a photo of the QR open
+  the letter on any offline computer.
 
 ## Run it
 
@@ -107,9 +111,12 @@ src/
   vault.ts            data model, defensive parsing, forward-only migration
   template.ts         self-carrying serialize (byte-stable app code)
   photos.ts           client-side recompression, size math, photo budget
-  entries.ts          archive ordering and folding a draft back into the vault
+  entries.ts          archive ordering, folding drafts and sealed entries
+  seal.ts             AES-GCM seal and unseal, key generation
+  mnemonic.ts         the key as 24 BIP39 words, and back
+  qr.ts               QR encode for the key sheet, QR decode for unsealing
   save/               capability detection, both save paths, generation logic
-  ui/                 Preact components: home, editor, save states, dialogs
+  ui/                 Preact components: home, editor, seal, key sheet, unseal
 site/                 landing page and its assembler
 scripts/              site build, static server, e2e wrapper, container entry
 tests/unit            Vitest unit and integration tests
