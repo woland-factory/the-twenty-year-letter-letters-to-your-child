@@ -130,6 +130,34 @@ describe("serialize", () => {
     expect(serialize(v)).toBe(serialize(v));
   });
 
+  it("round-trips an interview entry, preserving answers and age", () => {
+    const v = emptyVault();
+    v.entries.push({
+      id: "iv1",
+      type: "interview",
+      createdAt: "2026-06-01T00:00:00.000Z",
+      occasion: "",
+      title: "Interview at age 3",
+      body: "",
+      photos: [],
+      childAgeYears: 3,
+      answers: [
+        { promptId: "little-kid-1", promptText: "What now?", answerText: "A vet 🐾\nfor sure" },
+        { promptId: "little-kid-2", promptText: "Favorite game?", answerText: "" },
+      ],
+    });
+    v.generation = 1;
+    v.savedAt = "2026-06-01T00:00:00.000Z";
+    v.fileId = "file-iv";
+    const round = parseVault(extractJson(serialize(v)));
+    expect(round).toEqual(v);
+    expect(serialize(v)).toBe(serialize(v));
+    // childAgeYears and answers serialize before sealed, after photos.
+    const json = extractJson(serialize(v));
+    expect(json.indexOf('"photos"')).toBeLessThan(json.indexOf('"childAgeYears"'));
+    expect(json.indexOf('"childAgeYears"')).toBeLessThan(json.indexOf('"answers"'));
+  });
+
   it("fixes the sealed blob key order regardless of input order", () => {
     const v = emptyVault();
     v.entries.push({

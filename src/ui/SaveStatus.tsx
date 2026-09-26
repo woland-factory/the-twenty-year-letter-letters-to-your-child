@@ -12,6 +12,7 @@ export function SaveControls({
   canSave,
   onSave,
   onBack,
+  saveLabel = "Save",
 }: {
   phase: SavePhase;
   error: string | null;
@@ -19,6 +20,7 @@ export function SaveControls({
   canSave: boolean;
   onSave: () => void;
   onBack: () => void;
+  saveLabel?: string;
 }) {
   return (
     <div>
@@ -29,7 +31,7 @@ export function SaveControls({
           onClick={onSave}
           disabled={phase === "saving" || !canSave}
         >
-          {phase === "saving" ? "Saving" : "Save"}
+          {phase === "saving" ? "Saving" : saveLabel}
         </button>
         <button type="button" class="btn btn-secondary" onClick={onBack}>
           Back to letters

@@ -52,6 +52,36 @@ export function UnsealView({
   }
 
   if (revealed) {
+    // A revealed interview carries answers instead of a body: show the title,
+    // the date, and each recorded question with its answer, read-only.
+    if (revealed.answers) {
+      const title = revealed.title || "Interview";
+      return (
+        <main class="page" id="main">
+          <div class="topbar">
+            <span class="brand">Open a sealed interview</span>
+          </div>
+          <p class="reveal-note">
+            This interview is open only on this screen. It stays sealed in your file.
+          </p>
+          <article class="reveal">
+            <h1 class="reveal-title">{title}</h1>
+            <p class="reveal-date muted">Recorded {formatSavedMoment(entry.createdAt, now)}</p>
+            <dl class="reveal-answers">
+              {revealed.answers.map((answer) => (
+                <div class="reveal-answer" key={answer.promptId}>
+                  <dt class="reveal-question">{answer.promptText}</dt>
+                  <dd class="reveal-answer-text">{answer.answerText}</dd>
+                </div>
+              ))}
+            </dl>
+          </article>
+          <button type="button" class="btn btn-secondary btn-block" onClick={onClose}>
+            Close
+          </button>
+        </main>
+      );
+    }
     const title = revealed.title || "Untitled letter";
     return (
       <main class="page" id="main">

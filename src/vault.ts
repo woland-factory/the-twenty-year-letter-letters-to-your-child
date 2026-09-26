@@ -3,9 +3,19 @@
 // migration. There is no database: schemaVersion + migrate() is the whole
 // migration surface.
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export type Child = { name: string; birthDate: string | null };
+
+// One prompt and its verbatim answer inside an interview entry. promptText is
+// stored on the entry, not looked up from the pack at render time, so an
+// interview recorded in 2030 always shows its 2030 wording even if the pack is
+// edited later. The entry is self-describing: the 20-year-artifact rule.
+export type InterviewAnswer = {
+  promptId: string; // stable id of the prompt as asked
+  promptText: string; // the exact question text asked, stored verbatim
+  answerText: string; // the child's answer, stored verbatim (may be "")
+};
 
 // A sealed entry carries only this blob. The letter's key is never here: it
 // exists only on the paper the family keeps. iv and ciphertext are base64;
@@ -32,12 +42,14 @@ export type Photo = {
 
 export type Entry = {
   id: string;
-  type: "letter";
+  type: "letter" | "interview"; // "interview" added in v4
   createdAt: string; // ISO
-  occasion: string; // free text, may be "" (added in v2)
+  occasion: string; // free text, may be "" (added in v2; "" on an interview)
   title: string;
-  body: string; // plain text ("" on a sealed entry)
-  photos: Photo[]; // may be [] (added in v2; [] on a sealed entry)
+  body: string; // plain text ("" on an interview and on a sealed entry)
+  photos: Photo[]; // may be [] (added in v2; [] on an interview and a sealed entry)
+  childAgeYears?: number; // interview-only, present iff unsealed (added in v4)
+  answers?: InterviewAnswer[]; // interview-only, present iff unsealed (added in v4)
   sealed?: Sealed; // present iff the entry is sealed (added in v3)
   [extra: string]: unknown; // unknown future fields preserved, not dropped
 };
@@ -91,6 +103,9 @@ export function migrate(raw: Record<string, unknown>): Record<string, unknown> {
   if (data.schemaVersion === 2) {
     data = migrateV2toV3(data);
   }
+  if (data.schemaVersion === 3) {
+    data = migrateV3toV4(data);
+  }
   return data;
 }
 
@@ -113,6 +128,12 @@ function migrateV1toV2(data: Record<string, unknown>): Record<string, unknown> {
 // entries, so only the version bumps; existing entries are untouched.
 function migrateV2toV3(data: Record<string, unknown>): Record<string, unknown> {
   return { ...data, schemaVersion: 3 };
+}
+
+// v4 adds the interview entry type. A v3 vault has no interview entries, so only
+// the version bumps; existing entries are untouched.
+function migrateV3toV4(data: Record<string, unknown>): Record<string, unknown> {
+  return { ...data, schemaVersion: 4 };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -148,10 +169,26 @@ function validateSealed(value: unknown): Sealed {
   return value as unknown as Sealed;
 }
 
+function validateAnswers(value: unknown): InterviewAnswer[] {
+  if (!Array.isArray(value)) throw new VaultParseError("An interview answer is not readable.");
+  for (const item of value) {
+    if (
+      !isObject(item) ||
+      typeof item.promptId !== "string" ||
+      typeof item.promptText !== "string" ||
+      typeof item.answerText !== "string"
+    ) {
+      throw new VaultParseError("An interview answer is not readable.");
+    }
+  }
+  return value as unknown as InterviewAnswer[];
+}
+
 function validateEntry(value: unknown): Entry {
   if (!isObject(value)) throw new VaultParseError("An entry is not readable.");
   if (typeof value.id !== "string") throw new VaultParseError("An entry is missing its id.");
-  if (value.type !== "letter") throw new VaultParseError("An entry has an unknown type.");
+  if (value.type !== "letter" && value.type !== "interview")
+    throw new VaultParseError("An entry has an unknown type.");
   if (typeof value.createdAt !== "string")
     throw new VaultParseError("An entry is missing its date.");
   if (typeof value.occasion !== "string")
@@ -161,13 +198,21 @@ function validateEntry(value: unknown): Entry {
   if (!Array.isArray(value.photos)) throw new VaultParseError("An entry's photos are not readable.");
   // Validate each photo; keep the entry's own object so unknown fields survive.
   const photos = value.photos.map(validatePhoto);
+  // Interview fields, present only on an unsealed interview. A sealed interview
+  // has neither, so they are optional. Malformed ones reach the designed error
+  // state, never a silent drop.
+  const answers = value.answers !== undefined ? validateAnswers(value.answers) : undefined;
+  if (value.childAgeYears !== undefined && !isFiniteNumber(value.childAgeYears)) {
+    throw new VaultParseError("An interview age is not readable.");
+  }
+  const withInterview = answers !== undefined ? { ...value, answers } : value;
   // A sealed entry carries the sealed blob; validate it when present. A
   // malformed blob reaches the designed error state, never a silent drop.
   if (value.sealed !== undefined && value.sealed !== null) {
     const sealed = validateSealed(value.sealed);
-    return { ...value, photos, sealed } as unknown as Entry;
+    return { ...withInterview, photos, sealed } as unknown as Entry;
   }
-  return { ...value, photos } as unknown as Entry;
+  return { ...withInterview, photos } as unknown as Entry;
 }
 
 function validateChild(value: unknown): Child | null {

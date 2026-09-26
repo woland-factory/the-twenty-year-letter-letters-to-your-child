@@ -55,6 +55,25 @@ export function BookView({
           </header>
 
           {entries.map((entry) => {
+            // An interview typesets as its questions and answers, no body or
+            // photos. A letter renders exactly as before.
+            if (entry.type === "interview") {
+              const interviewTitle = entry.title || "Interview";
+              return (
+                <article class="book-entry book-interview" key={entry.id}>
+                  <h2 class="book-entry-title">{interviewTitle}</h2>
+                  <p class="book-entry-date">Recorded {formatBookDate(entry.createdAt)}</p>
+                  <dl class="book-answers">
+                    {(entry.answers ?? []).map((answer) => (
+                      <div class="book-answer" key={answer.promptId}>
+                        <dt class="book-question">{answer.promptText}</dt>
+                        <dd class="book-answer-text">{answer.answerText}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </article>
+              );
+            }
             const title = entry.title || "Untitled letter";
             return (
               <article class="book-entry" key={entry.id}>

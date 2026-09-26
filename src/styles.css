@@ -811,6 +811,93 @@ p {
   font-size: 0.95rem;
 }
 
+/* Birthday nudge: one calm, subordinate inset line on the archive. Never a
+   modal, never blocking. */
+.nudge {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.nudge-heading {
+  font-size: 1.05rem;
+  margin-bottom: 0.25rem;
+}
+
+.nudge-line {
+  color: var(--ink-soft);
+  margin-bottom: 0.75rem;
+}
+
+.nudge-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+/* Archive interview row: no thumbnail, marked as an interview. */
+.entry-interview {
+  cursor: pointer;
+}
+
+/* Interview view: the prompts and their answer fields. */
+.interview-prompts {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+}
+
+.interview-prompt {
+  margin-bottom: 0.5rem;
+}
+
+.interview-answer {
+  min-height: 6rem;
+}
+
+/* Revealed interview (read-only, in memory only). */
+.reveal-answers {
+  margin: 0 0 1.25rem;
+}
+
+.reveal-answer {
+  margin-bottom: 1rem;
+}
+
+.reveal-question {
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.reveal-answer-text {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+/* Book interview: question emphasized, answer in the reading measure. */
+.book-answers {
+  margin: 0;
+}
+
+.book-answer {
+  margin-bottom: 1rem;
+}
+
+.book-question {
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.book-answer-text {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+
 /* Print: the key sheet OR the book, on clean pages, chrome hidden. */
 @media print {
   @page {
@@ -887,6 +974,17 @@ p {
     height: auto;
   }
   .book-body {
+    orphans: 3;
+    widows: 3;
+  }
+  /* Keep an interview question with its answer, and do not strand answer lines. */
+  .book-question {
+    break-after: avoid;
+  }
+  .book-answer {
+    break-inside: avoid;
+  }
+  .book-answer-text {
     orphans: 3;
     widows: 3;
   }

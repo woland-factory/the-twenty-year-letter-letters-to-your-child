@@ -26,8 +26,9 @@ test.describe("distribution site", () => {
   }) => {
     await page.goto("/the-twenty-year-letter.html?demo=1");
     await expect(page.getByText("The night you came home")).toBeVisible();
-    // The demo carries one open letter and one sealed placeholder.
-    await expect(page.getByText(/2 letters\./)).toBeVisible();
+    // The demo carries one open letter, one interview, and one sealed placeholder.
+    await expect(page.getByText(/3 letters\./)).toBeVisible();
+    await expect(page.getByText("Yearly interview")).toBeVisible();
     await expect(page.getByText("Sealed letter")).toBeVisible();
     await expect(page.getByText("In Mira's first birthday card")).toBeVisible();
     // The open letter carries one photo, so the archive shows a real thumbnail.

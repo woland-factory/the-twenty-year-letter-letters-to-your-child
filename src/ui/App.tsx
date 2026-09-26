@@ -1,9 +1,9 @@
 // Coordinates the whole artifact: routes between the archive home, the editor,
-// and the unseal view, owns the vault in memory, and drives every save and seal
-// path to a calm, truthful outcome.
+// the interview, and the unseal view, owns the vault in memory, and drives every
+// save and seal path to a calm, truthful outcome.
 
 import { useState } from "preact/hooks";
-import type { Vault, Photo, Entry } from "../vault";
+import type { Vault, Photo, Entry, InterviewAnswer } from "../vault";
 import { SaveController } from "../save";
 import { randomId } from "../ids";
 import {
@@ -12,7 +12,13 @@ import {
   vaultPhotoBytes,
   wouldExceedBudget,
 } from "../photos";
-import { foldDraft, foldSealed, isSealed } from "../entries";
+import { foldDraft, foldInterview, foldSealed, isSealed, type InterviewDraft } from "../entries";
+import {
+  ageInYears,
+  birthdayNudge,
+  interviewTitle,
+  promptsForAge,
+} from "../interview";
 import {
   seal,
   sealingAvailable,
@@ -24,6 +30,7 @@ import { decodeQrFromFile, QrDecodeError } from "../qr";
 import { Home } from "./Home";
 import { BookView } from "./BookView";
 import { Editor } from "./Editor";
+import { InterviewView } from "./InterviewView";
 import { SealDialog } from "./SealDialog";
 import { KeySheet } from "./KeySheet";
 import { UnsealView } from "./UnsealView";
@@ -37,13 +44,15 @@ const FIRST_SAVE_HINT =
 const NOT_AN_IMAGE_MSG = "That file is not a photo. Choose a JPEG or PNG image.";
 const BUDGET_MSG = "Your file has reached its photo limit. Remove a photo to add a new one.";
 const SEAL_FAILED_MSG = "Sealing did not finish. Your letter is unchanged.";
+const BAD_DATE_MSG = "Choose a birth date on or before today.";
 
 const BAD_WORDS_MSG = "Those words do not match. Check each word and try again.";
 const WRONG_KEY_MSG = "That key does not open this letter. Check you have the right key sheet.";
 const QR_NOT_FOUND_MSG = "The code did not scan. Try a clearer photo of your key sheet.";
 
-type Route = "home" | "editor" | "unseal" | "book";
+type Route = "home" | "editor" | "interview" | "unseal" | "book";
 type SealContext = { words: string[]; keyHint: string };
+type SealTarget = "letter" | "interview";
 
 function unsealMessageFor(err: unknown): string {
   if (err instanceof QrDecodeError) return QR_NOT_FOUND_MSG;
@@ -76,6 +85,20 @@ export function App({
   );
   const [ritual, setRitual] = useState<{ generation: number; savedAt: string } | null>(null);
   const [pending, setPending] = useState<Vault | null>(null);
+  const [pendingEntryId, setPendingEntryId] = useState<string | null>(null);
+
+  // Interview state, kept separate from the letter draft so the two flows never
+  // interfere. needsBirthDate shows the capture step; didCapture records that
+  // this interview supplied the birth date, so save writes it into vault.child.
+  const [interviewEditingId, setInterviewEditingId] = useState<string | null>(null);
+  const [interviewTitleText, setInterviewTitleText] = useState("");
+  const [interviewAge, setInterviewAge] = useState(0);
+  const [interviewAnswers, setInterviewAnswers] = useState<InterviewAnswer[]>([]);
+  const [needsBirthDate, setNeedsBirthDate] = useState(false);
+  const [didCapture, setDidCapture] = useState(false);
+  const [captureName, setCaptureName] = useState("");
+  const [captureBirthDate, setCaptureBirthDate] = useState("");
+  const [captureError, setCaptureError] = useState<string | null>(null);
 
   // Seal state. sealCtx holds the words in memory across the save (and any
   // stale prompt); keySheet is the once-shown surface after the ciphertext is
@@ -84,7 +107,13 @@ export function App({
   const [sealing, setSealing] = useState(false);
   const [sealMessage, setSealMessage] = useState<string | null>(null);
   const [sealCtx, setSealCtx] = useState<SealContext | null>(null);
+  const [sealTarget, setSealTarget] = useState<SealTarget>("letter");
   const [keySheet, setKeySheet] = useState<SealContext | null>(null);
+
+  // The birthday nudge, dismissed only for this session. Recording this year's
+  // interview makes birthdayNudge return null structurally, so it does not
+  // reappear after a real interview is saved.
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   // Unseal state. The revealed payload lives only here, for display; it is never
   // written back to the vault.
@@ -108,10 +137,79 @@ export function App({
     setSealMessage(null);
   }
 
+  // Reset the shared save/seal status so the interview flow opens clean.
+  function resetInterviewStatus() {
+    setPhase("idle");
+    setSaveError(null);
+    setSealing(false);
+    setSealMessage(null);
+    setCaptureError(null);
+  }
+
   function openWrite() {
     setEditingId(null);
     resetDraft();
     setRoute("editor");
+  }
+
+  function seedInterview(age: number) {
+    const band = promptsForAge(age);
+    setInterviewAnswers(
+      band.prompts.map((p) => ({ promptId: p.id, promptText: p.text, answerText: "" })),
+    );
+    setInterviewTitleText(interviewTitle(age));
+    setInterviewAge(age);
+    setNeedsBirthDate(false);
+  }
+
+  // Start a new interview. Without a known birth date, the capture step comes
+  // first; with one, the age-appropriate prompts open straight away.
+  function openInterview() {
+    setInterviewEditingId(null);
+    setInterviewAnswers([]);
+    setInterviewTitleText("");
+    setInterviewAge(0);
+    setCaptureName(vault.child?.name ?? "");
+    setCaptureBirthDate("");
+    setDidCapture(false);
+    resetInterviewStatus();
+
+    const birthDate = vault.child?.birthDate ?? null;
+    const age = birthDate ? ageInYears(birthDate, now) : null;
+    if (age === null) {
+      setNeedsBirthDate(true);
+    } else {
+      seedInterview(age);
+    }
+    setRoute("interview");
+  }
+
+  // The capture step's Continue: validate the entered date, then open the
+  // age-appropriate prompts. The date is written to vault.child only on save.
+  function continueCapture() {
+    const age = ageInYears(captureBirthDate, now);
+    if (age === null) {
+      setCaptureError(BAD_DATE_MSG);
+      return;
+    }
+    setDidCapture(true);
+    setCaptureError(null);
+    seedInterview(age);
+  }
+
+  // Reopen an unsealed interview from the archive, restoring every recorded
+  // answer verbatim so editing continues exactly where it left off.
+  function openInterviewEntry(id: string) {
+    const entry = vault.entries.find((e) => e.id === id);
+    if (!entry || entry.type !== "interview") return;
+    setInterviewEditingId(id);
+    setInterviewTitleText(entry.title);
+    setInterviewAge(entry.childAgeYears ?? 0);
+    setInterviewAnswers(entry.answers ?? []);
+    setNeedsBirthDate(false);
+    setDidCapture(false);
+    resetInterviewStatus();
+    setRoute("interview");
   }
 
   function openEntry(id: string) {
@@ -125,6 +223,10 @@ export function App({
       setRoute("unseal");
       return;
     }
+    if (entry.type === "interview") {
+      openInterviewEntry(id);
+      return;
+    }
     setEditingId(id);
     resetDraft();
     setTitle(entry.title);
@@ -132,6 +234,12 @@ export function App({
     setBody(entry.body);
     setPhotos(entry.photos);
     setRoute("editor");
+  }
+
+  function setAnswer(promptId: string, answerText: string) {
+    setInterviewAnswers((prev) =>
+      prev.map((a) => (a.promptId === promptId ? { ...a, answerText } : a)),
+    );
   }
 
   function backToLetters() {
@@ -224,14 +332,78 @@ export function App({
     applyResult(result, next, entryId, null);
   }
 
-  // The trust-critical seal path. Encrypt first, then save; the sealed vault is
-  // committed and the key sheet shown ONLY after the save resolves to "saved".
-  // On any other outcome the letter stays unsealed and the draft is untouched.
+  // The child record to save alongside an interview: a captured birth date is
+  // written into vault.child, otherwise the existing child is kept.
+  function childForInterviewSave(): Vault["child"] {
+    if (didCapture) return { name: captureName.trim(), birthDate: captureBirthDate };
+    return vault.child;
+  }
+
+  function interviewDraft(): InterviewDraft {
+    return { title: interviewTitleText, childAgeYears: interviewAge, answers: interviewAnswers };
+  }
+
+  // Save an interview through the existing controller so stale-copy detection,
+  // the download ritual, and the "Saved" readout all apply, exactly like a
+  // letter. A captured birth date lands in vault.child on the same save.
+  async function saveInterview() {
+    setPhase("saving");
+    setSaveError(null);
+    const base = { ...vault, child: childForInterviewSave() };
+    const { next, entryId } = foldInterview(
+      base,
+      interviewDraft(),
+      interviewEditingId,
+      randomId(),
+      now.toISOString(),
+    );
+    const result = await controller.save(next);
+    if (result.status === "saved") setInterviewEditingId(entryId);
+    applyResult(result, next, entryId, null);
+  }
+
+  function openSealDialog(target: SealTarget) {
+    setSealTarget(target);
+    setSealDialog(true);
+  }
+
+  // The trust-critical seal path, shared by letters and interviews. Encrypt
+  // first, then save; the sealed vault is committed and the key sheet shown ONLY
+  // after the save resolves to "saved". On any other outcome the entry stays
+  // unsealed and the draft is untouched.
   async function runSeal(keyHint: string) {
     setSealDialog(false);
     setSealMessage(null);
     setSealing(true);
-    const payload: SealedPayload = { occasion, title, body, photos };
+
+    // Build the base vault, the payload, and the id foldSealed will replace.
+    let base = vault;
+    let payload: SealedPayload;
+    let sealEditingId: string | null;
+    if (sealTarget === "interview") {
+      base = { ...vault, child: childForInterviewSave() };
+      payload = {
+        occasion: "",
+        title: interviewTitleText,
+        body: "",
+        photos: [],
+        childAgeYears: interviewAge,
+        answers: interviewAnswers,
+      };
+      // Make sure the interview exists as an entry so foldSealed keeps its type
+      // "interview" while stripping every plaintext field.
+      if (interviewEditingId) {
+        sealEditingId = interviewEditingId;
+      } else {
+        const folded = foldInterview(base, interviewDraft(), null, randomId(), now.toISOString());
+        base = folded.next;
+        sealEditingId = folded.entryId;
+      }
+    } else {
+      payload = { occasion, title, body, photos };
+      sealEditingId = editingId;
+    }
+
     let sealed;
     let words: string[];
     try {
@@ -243,7 +415,7 @@ export function App({
     }
     const ctx: SealContext = { words, keyHint };
     setSealCtx(ctx); // held across the save, and across a stale prompt if one appears
-    const { next, entryId } = foldSealed(vault, sealed, editingId, randomId(), now.toISOString());
+    const { next, entryId } = foldSealed(base, sealed, sealEditingId, randomId(), now.toISOString());
     const saveResult = await controller.save(next);
     applyResult(saveResult, next, entryId, ctx);
   }
@@ -274,6 +446,7 @@ export function App({
       }
     } else if (result.status === "stale") {
       setPending(attempted);
+      setPendingEntryId(entryId);
       setStale({ diskGeneration: result.diskGeneration, myGeneration: result.myGeneration });
       setPhase("idle");
       // sealCtx (if any) stays in memory so the key sheet can appear after the
@@ -302,18 +475,20 @@ export function App({
   async function replaceDiskCopy() {
     if (!pending) return;
     const attempted = pending;
-    const entryId = editingId ?? attempted.entries[0]?.id ?? "";
+    const entryId = pendingEntryId ?? attempted.entries[0]?.id ?? "";
     setStale(null);
     setPhase("saving");
     if (sealCtx) setSealing(true);
     const result = await controller.saveReplacingDisk(attempted);
     setPending(null);
+    setPendingEntryId(null);
     applyResult(result, attempted, entryId, sealCtx);
   }
 
   function keepDiskCopy() {
     setStale(null);
     setPending(null);
+    setPendingEntryId(null);
     setPhase("idle");
     if (sealCtx) {
       // The parent kept the disk copy, so this seal did not save. Discard the
@@ -377,6 +552,11 @@ export function App({
     photos.length > 0;
   const canSeal =
     canSave && sealingReady && photosBusy === 0 && phase !== "saving" && !sealing;
+  // An interview always has something to keep (recording nothing this year is
+  // allowed), so it can always save and, when ready, seal.
+  const canSealInterview = sealingReady && phase !== "saving" && !sealing;
+
+  const nudge = birthdayNudge(vault, now);
 
   return (
     <>
@@ -387,9 +567,13 @@ export function App({
         <Home
           vault={vault}
           now={now}
+          nudge={nudge}
+          nudgeDismissed={nudgeDismissed}
           onWrite={openWrite}
           onOpenEntry={openEntry}
+          onOpenInterview={openInterview}
           onOpenBook={openBook}
+          onDismissNudge={() => setNudgeDismissed(true)}
         />
       )}
       {route === "book" && (
@@ -419,7 +603,32 @@ export function App({
           onMovePhoto={movePhoto}
           onRemovePhoto={removePhoto}
           onSave={runSave}
-          onSeal={() => setSealDialog(true)}
+          onSeal={() => openSealDialog("letter")}
+          onBack={backToLetters}
+        />
+      )}
+      {route === "interview" && (
+        <InterviewView
+          needsBirthDate={needsBirthDate}
+          childName={captureName}
+          birthDate={captureBirthDate}
+          captureError={captureError}
+          onChildName={setCaptureName}
+          onBirthDate={setCaptureBirthDate}
+          onContinue={continueCapture}
+          title={interviewTitleText}
+          answers={interviewAnswers}
+          onAnswer={setAnswer}
+          phase={phase}
+          error={saveError}
+          hint={hint}
+          canSave={true}
+          canSeal={canSealInterview}
+          sealingReady={sealingReady}
+          sealing={sealing}
+          sealMessage={sealMessage}
+          onSave={saveInterview}
+          onSeal={() => openSealDialog("interview")}
           onBack={backToLetters}
         />
       )}

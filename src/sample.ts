@@ -41,6 +41,35 @@ export function sampleVault(): Vault {
           "Love,\nDad",
         photos: [SAMPLE_PHOTO],
       },
+      // One recorded interview, so the demo shows the yearly ritual in the
+      // archive and the book at a glance. Inert and unsealed.
+      {
+        id: "sample-interview-1",
+        type: "interview",
+        createdAt: "2026-02-20T18:30:00.000Z",
+        occasion: "",
+        title: "Interview in the first year",
+        body: "",
+        photos: [],
+        childAgeYears: 0,
+        answers: [
+          {
+            promptId: "first-year-1",
+            promptText: "What makes you laugh right now?",
+            answerText: "Peekaboo, every single time.",
+          },
+          {
+            promptId: "first-year-3",
+            promptText: "How do you like to be held and comforted?",
+            answerText: "Curled on my chest, swaying slowly.",
+          },
+          {
+            promptId: "first-year-5",
+            promptText: "What do I want to remember about you at this age?",
+            answerText: "The way you grab my finger and hold on.",
+          },
+        ],
+      },
       // A sealed letter, so the demo archive shows the locked state at a glance.
       // Its key was thrown away at authoring time, so it stays sealed forever.
       // The ciphertext holds a short throwaway note and no photos.

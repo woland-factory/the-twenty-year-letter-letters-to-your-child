@@ -70,6 +70,8 @@ function orderEntry(entry: Record<string, unknown>): Record<string, unknown> {
     "title",
     "body",
     "photos",
+    "childAgeYears",
+    "answers",
     "sealed",
   ]);
   if (Array.isArray(out.photos)) {

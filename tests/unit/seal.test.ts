@@ -77,6 +77,29 @@ describe("seal / unseal", () => {
     expect(JSON.stringify(sealed)).toBe(snapshot);
   });
 
+  it("round-trips an interview payload with answers and age", async () => {
+    const interviewPayload: SealedPayload = {
+      occasion: "",
+      title: "Interview at age 5",
+      body: "",
+      photos: [],
+      childAgeYears: 5,
+      answers: [
+        { promptId: "early-school-1", promptText: "Proud of?", answerText: "Reading a whole book." },
+        { promptId: "early-school-2", promptText: "Friends?", answerText: "They are kind. 日本語" },
+      ],
+    };
+    const { sealed, words } = await seal(interviewPayload, "the drawer", "2026-09-26T00:00:00.000Z");
+    // The blob leaks no readable answer text or age.
+    const blob = JSON.stringify(sealed);
+    expect(blob).not.toContain("Reading a whole book.");
+    expect(blob).not.toContain("early-school-1");
+    const opened = await unsealWithWords(sealed, words);
+    expect(opened).toEqual(interviewPayload);
+    expect(opened.childAgeYears).toBe(5);
+    expect(opened.answers).toHaveLength(2);
+  });
+
   it("generates a fresh iv per seal", async () => {
     const a = await seal(payload(), "hint", "2026-09-26T00:00:00.000Z");
     const b = await seal(payload(), "hint", "2026-09-26T00:00:00.000Z");

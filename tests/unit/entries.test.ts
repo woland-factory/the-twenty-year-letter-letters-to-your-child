@@ -2,12 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
   bookEntries,
   foldDraft,
+  foldInterview,
   foldSealed,
   isSealed,
   sortedEntries,
   unsealedEntries,
 } from "../../src/entries";
-import { emptyVault, type Entry, type Photo, type Sealed, type Vault } from "../../src/vault";
+import {
+  emptyVault,
+  type Entry,
+  type InterviewAnswer,
+  type Photo,
+  type Sealed,
+  type Vault,
+} from "../../src/vault";
 
 function photo(id: string): Photo {
   return { id, dataUrl: `data:image/jpeg;base64,${id}`, caption: id, w: 10, h: 10, bytes: 100 };
@@ -143,6 +151,115 @@ const SEALED: Sealed = {
   keyHint: "In the birthday card",
   sealedAt: "2026-09-26T00:00:00.000Z",
 };
+
+function answers(...texts: string[]): InterviewAnswer[] {
+  return texts.map((answerText, i) => ({
+    promptId: `q-${i}`,
+    promptText: `Question ${i}?`,
+    answerText,
+  }));
+}
+
+function interviewEntry(id: string, createdAt: string, childAgeYears: number): Entry {
+  return {
+    id,
+    type: "interview",
+    createdAt,
+    occasion: "",
+    title: `Interview at age ${childAgeYears}`,
+    body: "",
+    photos: [],
+    childAgeYears,
+    answers: answers("first", "second"),
+  };
+}
+
+describe("foldInterview", () => {
+  const draft = {
+    title: "Interview at age 3",
+    childAgeYears: 3,
+    answers: answers("a spaceship", "hide and seek"),
+  };
+
+  it("prepends a new interview with the interview shape and empty letter fields", () => {
+    const existing = entry("e1", "2026-01-01T00:00:00.000Z", ["p1"]);
+    const vault = vaultWith(existing);
+
+    const { next, entryId } = foldInterview(vault, draft, null, "iv-new", "2026-09-01T00:00:00.000Z");
+
+    expect(entryId).toBe("iv-new");
+    const created = next.entries[0];
+    expect(created.id).toBe("iv-new");
+    expect(created.type).toBe("interview");
+    expect(created.createdAt).toBe("2026-09-01T00:00:00.000Z");
+    expect(created.childAgeYears).toBe(3);
+    expect(created.answers).toEqual(draft.answers);
+    expect(created.occasion).toBe("");
+    expect(created.body).toBe("");
+    expect(created.photos).toEqual([]);
+    // The existing letter and its photos are byte-for-byte unchanged.
+    expect(next.entries[1]).toEqual(existing);
+    expect(next.entries[1].photos).toEqual(existing.photos);
+  });
+
+  it("edits in place by id, preserving createdAt and childAgeYears", () => {
+    const iv = interviewEntry("iv1", "2026-02-01T00:00:00.000Z", 3);
+    const other = entry("e2", "2026-03-01T00:00:00.000Z", ["p2", "p3"]);
+    const vault = vaultWith(iv, other);
+
+    const { next, entryId } = foldInterview(
+      vault,
+      { title: "Edited title", childAgeYears: 99, answers: answers("new answer") },
+      "iv1",
+      "unused",
+      "2026-09-01T00:00:00.000Z",
+    );
+
+    expect(entryId).toBe("iv1");
+    const edited = next.entries.find((e) => e.id === "iv1")!;
+    // Title and answers change; createdAt and the recorded age are facts, kept.
+    expect(edited.title).toBe("Edited title");
+    expect(edited.answers).toEqual(answers("new answer"));
+    expect(edited.createdAt).toBe("2026-02-01T00:00:00.000Z");
+    expect(edited.childAgeYears).toBe(3);
+    // The other entry and its photos are untouched.
+    expect(next.entries.find((e) => e.id === "e2")).toEqual(other);
+  });
+});
+
+describe("foldSealed strips interview plaintext", () => {
+  it("removes answers and childAgeYears, keeping type and createdAt", () => {
+    const iv = interviewEntry("iv1", "2026-02-01T00:00:00.000Z", 4);
+    const vault = vaultWith(iv);
+
+    const { next } = foldSealed(vault, SEALED, "iv1", "unused", "2026-09-01T00:00:00.000Z");
+    const sealed = next.entries.find((e) => e.id === "iv1")!;
+
+    expect(sealed.answers).toBeUndefined();
+    expect(sealed.childAgeYears).toBeUndefined();
+    expect(sealed.type).toBe("interview");
+    expect(sealed.createdAt).toBe("2026-02-01T00:00:00.000Z");
+    expect(sealed.title).toBe("");
+    expect(sealed.body).toBe("");
+    expect(sealed.occasion).toBe("");
+    expect(sealed.photos).toEqual([]);
+    expect(sealed.sealed).toEqual(SEALED);
+    // No plaintext answer survives anywhere in the serialized entry.
+    expect(JSON.stringify(sealed)).not.toContain("first");
+    expect(JSON.stringify(sealed)).not.toContain("second");
+  });
+
+  it("leaves a sealed letter's shape exactly as before", () => {
+    const letter = entry("e1", "2026-01-01T00:00:00.000Z", ["p1"]);
+    const vault = vaultWith(letter);
+    const { next } = foldSealed(vault, SEALED, "e1", "unused", "2026-09-01T00:00:00.000Z");
+    const sealed = next.entries.find((e) => e.id === "e1")!;
+    expect(sealed.type).toBe("letter");
+    expect(sealed.answers).toBeUndefined();
+    expect(sealed.childAgeYears).toBeUndefined();
+    expect(sealed.sealed).toEqual(SEALED);
+  });
+});
 
 describe("isSealed / unsealedEntries", () => {
   it("marks an entry sealed iff it carries a sealed blob", () => {

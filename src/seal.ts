@@ -4,15 +4,20 @@
 // the paper key sheet, and is then discarded.
 
 import { base64 } from "@scure/base";
-import type { Photo, Sealed } from "./vault";
+import type { InterviewAnswer, Photo, Sealed } from "./vault";
 import { bytesToWords, wordsToBytes } from "./mnemonic";
 
-// Exactly the content stripped from an entry when it is sealed.
+// Exactly the content stripped from an entry when it is sealed. The interview
+// fields are present only when the sealed entry was an interview; seal() and
+// unsealWithWords() only JSON-serialize the payload, so they flow through with
+// no crypto change.
 export type SealedPayload = {
   occasion: string;
   title: string;
   body: string;
   photos: Photo[];
+  childAgeYears?: number; // present when the sealed entry was an interview
+  answers?: InterviewAnswer[]; // present when the sealed entry was an interview
 };
 
 // Both unseal paths (typed words, scanned QR) fail through this one error, so

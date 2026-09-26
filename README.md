@@ -27,6 +27,9 @@ try a live copy.
 - **A printable book, always current.** Every open letter typesets into one book
   you can preview and print. It is the paper fallback: if a browser someday will
   not open the file, the printed book still holds the letters and photos.
+- **A yearly interview that grows with your child.** Once a year, answer a short
+  set of questions chosen for your child's age. A calm birthday reminder keeps the
+  ritual going, and each interview sits next to that year's letters in the book.
 
 ## Run it
 
@@ -114,12 +117,14 @@ src/
   vault.ts            data model, defensive parsing, forward-only migration
   template.ts         self-carrying serialize (byte-stable app code)
   photos.ts           client-side recompression, size math, photo budget
-  entries.ts          archive ordering, folding drafts and sealed entries
+  entries.ts          archive ordering, folding drafts, interviews, sealed entries
+  interview.ts        age-aware prompt pack, age math, birthday nudge
   seal.ts             AES-GCM seal and unseal, key generation
   mnemonic.ts         the key as 24 BIP39 words, and back
   qr.ts               QR encode for the key sheet, QR decode for unsealing
   save/               capability detection, both save paths, generation logic
   ui/                 Preact components: home, editor, seal, key sheet, unseal
+  ui/InterviewView.tsx the yearly interview: birth-date capture and prompt form
   ui/BookView.tsx     the printable book: unsealed letters typeset for print
 site/                 landing page and its assembler
 scripts/              site build, static server, e2e wrapper, container entry

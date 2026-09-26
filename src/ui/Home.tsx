@@ -1,7 +1,7 @@
 // The archive home. It opens with the integrity readout so a parent can see at
 // a glance that their letters are here and which copy this file is, then lists
-// the letters. When there are none, it names the product and offers the one
-// thing to do.
+// the letters and interviews. When there are none, it names the product and
+// offers the one thing to do.
 
 import type { Vault } from "../vault";
 import { formatCopyLine, formatEntryCount, formatSavedMoment } from "../format";
@@ -25,18 +25,51 @@ function IntegrityReadout({ vault, now }: { vault: Vault; now: Date }) {
   );
 }
 
+function BirthdayNudge({
+  onOpenInterview,
+  onDismissNudge,
+}: {
+  onOpenInterview: () => void;
+  onDismissNudge: () => void;
+}) {
+  return (
+    <section class="nudge" aria-labelledby="nudge-heading">
+      <h2 class="nudge-heading" id="nudge-heading">
+        Time for this year's interview.
+      </h2>
+      <p class="nudge-line">A few questions with your child, kept next to this year's letters.</p>
+      <div class="nudge-actions">
+        <button type="button" class="btn btn-primary" onClick={onOpenInterview}>
+          Record this year's interview
+        </button>
+        <button type="button" class="btn btn-secondary" onClick={onDismissNudge}>
+          Not now
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export function Home({
   vault,
   now,
+  nudge,
+  nudgeDismissed,
   onWrite,
   onOpenEntry,
+  onOpenInterview,
   onOpenBook,
+  onDismissNudge,
 }: {
   vault: Vault;
   now: Date;
+  nudge: { age: number } | null;
+  nudgeDismissed: boolean;
   onWrite: () => void;
   onOpenEntry: (id: string) => void;
+  onOpenInterview: () => void;
   onOpenBook: () => void;
+  onDismissNudge: () => void;
 }) {
   const empty = vault.entries.length === 0;
 
@@ -57,6 +90,9 @@ export function Home({
       ) : (
         <>
           <IntegrityReadout vault={vault} now={now} />
+          {nudge && !nudgeDismissed && (
+            <BirthdayNudge onOpenInterview={onOpenInterview} onDismissNudge={onDismissNudge} />
+          )}
           <ul class="entries">
             {sortedEntries(vault.entries).map((entry) => {
               // A sealed entry has no readable content in the file, so it shows
@@ -81,6 +117,28 @@ export function Home({
                         {keyHint && <span class="entry-occasion">{keyHint}</span>}
                         <span class="entry-date">
                           Written {formatSavedMoment(entry.createdAt, now)}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              }
+              // An unsealed interview: no thumbnail, marked as an interview,
+              // opening back into the interview flow in edit mode.
+              if (entry.type === "interview") {
+                const title = entry.title || "Interview";
+                return (
+                  <li key={entry.id}>
+                    <button
+                      type="button"
+                      class="entry entry-interview"
+                      onClick={() => onOpenEntry(entry.id)}
+                    >
+                      <span class="entry-text">
+                        <span class="entry-occasion">Yearly interview</span>
+                        <span class="entry-title">{title}</span>
+                        <span class="entry-date">
+                          Recorded {formatSavedMoment(entry.createdAt, now)}
                         </span>
                       </span>
                     </button>
@@ -116,6 +174,9 @@ export function Home({
           <div class="archive-actions">
             <button type="button" class="btn btn-primary btn-block" onClick={onWrite}>
               Write a letter
+            </button>
+            <button type="button" class="btn btn-secondary btn-block" onClick={onOpenInterview}>
+              Record an interview
             </button>
             <button type="button" class="btn btn-secondary btn-block" onClick={onOpenBook}>
               Open the book
