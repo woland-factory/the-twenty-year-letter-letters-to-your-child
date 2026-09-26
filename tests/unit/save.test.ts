@@ -22,8 +22,10 @@ function vaultWithLetter(): Vault {
     id: "e1",
     type: "letter",
     createdAt: "2026-03-03T21:00:00.000Z",
+    occasion: "",
     title: "Hello",
     body: "Body </script> text",
+    photos: [],
   });
   return v;
 }

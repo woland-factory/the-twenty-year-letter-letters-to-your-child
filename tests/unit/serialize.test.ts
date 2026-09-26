@@ -28,8 +28,19 @@ function withEntries(n: number): Vault {
       id: `e${i}`,
       type: "letter",
       createdAt: "2026-01-01T00:00:00.000Z",
+      occasion: `Occasion ${i}`,
       title: `Letter ${i}`,
       body: `Body ${i}`,
+      photos: [
+        {
+          id: `p${i}`,
+          dataUrl: "data:image/jpeg;base64,/9j/AAAB",
+          caption: `Caption ${i}`,
+          w: 1600,
+          h: 1067,
+          bytes: 12345,
+        },
+      ],
     });
   }
   v.generation = n;
@@ -60,6 +71,18 @@ describe("serialize", () => {
     expect(inner).not.toContain("<!--");
     const round = parseVault(inner);
     expect(round.entries[0].body).toBe(v.entries[0].body);
+  });
+
+  it("round-trips photo captions with script-breaking and unicode content", () => {
+    const v = withEntries(1);
+    v.entries[0].photos[0].caption =
+      'A caption with </script> and <!-- --> and "quotes" and \n newlines and emoji 📷';
+    const inner = extractJson(serialize(v));
+    expect(inner).not.toContain("</script>");
+    expect(inner).not.toContain("<!--");
+    const round = parseVault(inner);
+    expect(round).toEqual(v);
+    expect(round.entries[0].photos[0].caption).toBe(v.entries[0].photos[0].caption);
   });
 
   it("is byte-stable: the same vault serializes identically twice", () => {

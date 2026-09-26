@@ -21,10 +21,16 @@ test.describe("distribution site", () => {
     await expect(live).toHaveAttribute("href", /the-twenty-year-letter\.html\?demo=1/);
   });
 
-  test("the live artifact shows the sample letter with SEED_DEMO on", async ({ page }) => {
+  test("the live artifact shows the sample letter and its photo with SEED_DEMO on", async ({
+    page,
+  }) => {
     await page.goto("/the-twenty-year-letter.html?demo=1");
     await expect(page.getByText("The night you came home")).toBeVisible();
     await expect(page.getByText(/1 letter\./)).toBeVisible();
+    // The sample carries one photo, so the archive shows a real thumbnail.
+    const thumb = page.locator(".entry-thumb");
+    await expect(thumb).toBeVisible();
+    expect(await thumb.evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
   });
 
   test("the downloadable starter file is empty, never seeded", async ({ page }) => {

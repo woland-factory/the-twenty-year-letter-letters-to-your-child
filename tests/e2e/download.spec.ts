@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
-import { ARTIFACT_URL, extractVaultJson } from "./helpers";
+import { ARTIFACT_URL, attachGeneratedImage, extractVaultJson } from "./helpers";
 
 // Firefox has no File System Access API, so it takes the download-and-replace
 // path. This proves the ritual guidance and a full reopen round-trip.
@@ -16,6 +16,8 @@ test.describe("download-and-replace path", () => {
     await page.getByRole("button", { name: "Write a letter" }).click();
     await page.getByLabel("Title").fill("The night you came home");
     await page.getByLabel("Your letter").fill("You slept the whole drive back.");
+    await attachGeneratedImage(page, { width: 500, height: 400 });
+    await expect(page.locator(".photo-grid img")).toHaveCount(1);
 
     const downloadPromise = page.waitForEvent("download");
     await page.getByRole("button", { name: "Save" }).click();
@@ -36,11 +38,16 @@ test.describe("download-and-replace path", () => {
     const savedHtml = readFileSync(savedPath, "utf8");
     const vault = JSON.parse(extractVaultJson(savedHtml));
     expect(vault.entries[0].title).toBe("The night you came home");
+    expect(vault.entries[0].photos[0].dataUrl.startsWith("data:image/jpeg")).toBe(true);
     expect(vault.generation).toBe(1);
 
     await page.goto(pathToFileURL(savedPath).href);
     await expect(page.getByText("The night you came home")).toBeVisible();
     await expect(page.getByText(/1 letter\./)).toBeVisible();
     await expect(page.getByText("This is copy 1.")).toBeVisible();
+    // The photo survived the download and reopen, rendering from its data URL.
+    const thumb = page.locator(".entry-thumb");
+    await expect(thumb).toBeVisible();
+    expect(await thumb.evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
   });
 });
