@@ -55,17 +55,26 @@ npm run build
 npm start -- -p 3100      # serves site/dist on http://127.0.0.1:3100
 ```
 
-### Run the site in Docker (the staging shape)
+### Run the site in Docker
+
+Build the image and run it, publishing the container's port 80 to a port on
+your machine:
 
 ```bash
-docker compose -f docker-compose.staging.yml up --build
+docker build -t twenty-year-letter .
+docker run --rm -p 3100:80 -e SEED_DEMO=1 twenty-year-letter
 ```
 
-The container serves the site on port 80. Set `SEED_DEMO=1` (already set in the
-staging compose) to make the "try it live" link load one sample letter so you
-see real content without typing. `UMAMI_URL`, `UMAMI_WEBSITE_ID`, and
-`SENTRY_DSN`, when provided, wire analytics and error tracking into the landing
-page **only**. The artifact a family saves never contains any of them.
+Open http://127.0.0.1:3100. `SEED_DEMO=1` makes the "try it live" link load one
+sample letter so you see real content without typing. `UMAMI_URL`,
+`UMAMI_WEBSITE_ID`, and `SENTRY_DSN`, when provided as `-e` values, wire
+analytics and error tracking into the landing page **only**. The artifact a
+family saves never contains any of them.
+
+`docker-compose.staging.yml` is the deploy shape, not a local run. It expects an
+external proxy network (`factory-staging-net`) and a reverse proxy that routes to
+the container by name, so it will not come up on a plain machine. Use the
+`docker run` command above to run the site locally.
 
 ## Test
 
