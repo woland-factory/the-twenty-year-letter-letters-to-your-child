@@ -103,4 +103,57 @@ describe("serialize", () => {
   it("throws loudly when the markers are missing", () => {
     expect(() => captureTemplate("<html>no markers</html>")).toThrow();
   });
+
+  it("round-trips a vault with a sealed entry", () => {
+    const v = emptyVault();
+    v.entries.push({
+      id: "s1",
+      type: "letter",
+      createdAt: "2026-02-14T00:00:00.000Z",
+      occasion: "",
+      title: "",
+      body: "",
+      photos: [],
+      sealed: {
+        iv: "AAAAAAAAAAAAAAAA",
+        ciphertext: "Y2lwaGVydGV4dA==",
+        keyHint: "In the birthday card",
+        sealedAt: "2026-02-14T00:00:00.000Z",
+      },
+    });
+    v.generation = 1;
+    v.savedAt = "2026-02-14T00:00:00.000Z";
+    v.fileId = "file-s";
+    const round = parseVault(extractJson(serialize(v)));
+    expect(round).toEqual(v);
+    // Byte-stable across two serializations.
+    expect(serialize(v)).toBe(serialize(v));
+  });
+
+  it("fixes the sealed blob key order regardless of input order", () => {
+    const v = emptyVault();
+    v.entries.push({
+      id: "s1",
+      type: "letter",
+      createdAt: "2026-02-14T00:00:00.000Z",
+      occasion: "",
+      title: "",
+      body: "",
+      photos: [],
+      // Deliberately out of the canonical order.
+      sealed: {
+        sealedAt: "2026-02-14T00:00:00.000Z",
+        keyHint: "hint",
+        ciphertext: "Y2lwaGVy",
+        iv: "AAAAAAAAAAAAAAAA",
+      } as Vault["entries"][number]["sealed"],
+    });
+    const json = extractJson(serialize(v));
+    const idx = (k: string) => json.indexOf(`"${k}"`);
+    expect(idx("iv")).toBeLessThan(idx("ciphertext"));
+    expect(idx("ciphertext")).toBeLessThan(idx("keyHint"));
+    expect(idx("keyHint")).toBeLessThan(idx("sealedAt"));
+    // And "sealed" comes after "photos" in the entry.
+    expect(json.indexOf('"photos"')).toBeLessThan(json.indexOf('"sealed"'));
+  });
 });

@@ -3,9 +3,20 @@
 // migration. There is no database: schemaVersion + migrate() is the whole
 // migration surface.
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export type Child = { name: string; birthDate: string | null };
+
+// A sealed entry carries only this blob. The letter's key is never here: it
+// exists only on the paper the family keeps. iv and ciphertext are base64;
+// keyHint is the parent's plaintext reminder of where the paper key lives.
+export type Sealed = {
+  iv: string; // base64, 12-byte AES-GCM nonce, fresh per seal
+  ciphertext: string; // base64, AES-GCM output including the auth tag
+  keyHint: string; // parent-chosen reminder, plaintext (the only human label)
+  sealedAt: string; // ISO
+  [extra: string]: unknown; // unknown future fields preserved, not dropped
+};
 
 // A photo, recompressed in the browser before it is embedded. dataUrl is a
 // JPEG data URL; bytes is its decoded payload size, tracked for the budget.
@@ -25,8 +36,9 @@ export type Entry = {
   createdAt: string; // ISO
   occasion: string; // free text, may be "" (added in v2)
   title: string;
-  body: string; // plain text
-  photos: Photo[]; // may be [] (added in v2)
+  body: string; // plain text ("" on a sealed entry)
+  photos: Photo[]; // may be [] (added in v2; [] on a sealed entry)
+  sealed?: Sealed; // present iff the entry is sealed (added in v3)
   [extra: string]: unknown; // unknown future fields preserved, not dropped
 };
 
@@ -76,6 +88,9 @@ export function migrate(raw: Record<string, unknown>): Record<string, unknown> {
   if (data.schemaVersion === 1) {
     data = migrateV1toV2(data);
   }
+  if (data.schemaVersion === 2) {
+    data = migrateV2toV3(data);
+  }
   return data;
 }
 
@@ -92,6 +107,12 @@ function migrateV1toV2(data: Record<string, unknown>): Record<string, unknown> {
       })
     : data.entries;
   return { ...data, entries, schemaVersion: 2 };
+}
+
+// v3 adds the optional sealed blob on entries. A v2 vault has no sealed
+// entries, so only the version bumps; existing entries are untouched.
+function migrateV2toV3(data: Record<string, unknown>): Record<string, unknown> {
+  return { ...data, schemaVersion: 3 };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -114,6 +135,19 @@ function validatePhoto(value: unknown): Photo {
   return value as unknown as Photo;
 }
 
+function validateSealed(value: unknown): Sealed {
+  if (!isObject(value)) throw new VaultParseError("A sealed letter is not readable.");
+  if (typeof value.iv !== "string") throw new VaultParseError("A sealed letter is not readable.");
+  if (typeof value.ciphertext !== "string")
+    throw new VaultParseError("A sealed letter is not readable.");
+  if (typeof value.keyHint !== "string")
+    throw new VaultParseError("A sealed letter is not readable.");
+  if (typeof value.sealedAt !== "string")
+    throw new VaultParseError("A sealed letter is not readable.");
+  // Keep the object itself so unknown extra fields survive, like every other field.
+  return value as unknown as Sealed;
+}
+
 function validateEntry(value: unknown): Entry {
   if (!isObject(value)) throw new VaultParseError("An entry is not readable.");
   if (typeof value.id !== "string") throw new VaultParseError("An entry is missing its id.");
@@ -127,6 +161,12 @@ function validateEntry(value: unknown): Entry {
   if (!Array.isArray(value.photos)) throw new VaultParseError("An entry's photos are not readable.");
   // Validate each photo; keep the entry's own object so unknown fields survive.
   const photos = value.photos.map(validatePhoto);
+  // A sealed entry carries the sealed blob; validate it when present. A
+  // malformed blob reaches the designed error state, never a silent drop.
+  if (value.sealed !== undefined && value.sealed !== null) {
+    const sealed = validateSealed(value.sealed);
+    return { ...value, photos, sealed } as unknown as Entry;
+  }
   return { ...value, photos } as unknown as Entry;
 }
 

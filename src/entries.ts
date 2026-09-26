@@ -2,7 +2,7 @@
 // a browser: how the archive orders entries, and how a draft folds back into
 // the vault without disturbing anyone else's letter or photos.
 
-import type { Entry, Photo, Vault } from "./vault";
+import type { Entry, Photo, Sealed, Vault } from "./vault";
 
 export type Draft = {
   occasion: string;
@@ -53,6 +53,57 @@ export function foldDraft(
     title: draft.title,
     body: draft.body,
     photos: draft.photos,
+  };
+  return { next: { ...vault, entries: [entry, ...vault.entries] }, entryId: newId };
+}
+
+// An entry is sealed iff it carries a sealed blob. Pure predicate so the archive
+// and the future book can both branch on it without duplicating the rule.
+export function isSealed(entry: Entry): boolean {
+  return entry.sealed != null;
+}
+
+// The book-facing selection (EPIC 4 will consume it): sealed letters are
+// excluded because their content lives only behind the paper key.
+export function unsealedEntries(entries: Entry[]): Entry[] {
+  return entries.filter((e) => !isSealed(e));
+}
+
+// Fold a sealed blob into the vault, mirroring foldDraft. Editing replaces the
+// target entry in place, keeping its id and createdAt but emptying every content
+// field and setting the sealed blob, so its plaintext and photos leave the file.
+// A new seal is prepended. Every other entry and its photos are left untouched.
+export function foldSealed(
+  vault: Vault,
+  sealed: Sealed,
+  editingId: string | null,
+  newId: string,
+  createdAt: string,
+): { next: Vault; entryId: string } {
+  if (editingId) {
+    const entries = vault.entries.map((e) =>
+      e.id === editingId
+        ? {
+            ...e,
+            occasion: "",
+            title: "",
+            body: "",
+            photos: [],
+            sealed,
+          }
+        : e,
+    );
+    return { next: { ...vault, entries }, entryId: editingId };
+  }
+  const entry: Entry = {
+    id: newId,
+    type: "letter",
+    createdAt,
+    occasion: "",
+    title: "",
+    body: "",
+    photos: [],
+    sealed,
   };
   return { next: { ...vault, entries: [entry, ...vault.entries] }, entryId: newId };
 }

@@ -16,7 +16,11 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "preact": "10.24.3"
+    "@scure/base": "1.1.9",
+    "@scure/bip39": "1.4.0",
+    "jsqr": "1.4.0",
+    "preact": "10.24.3",
+    "qrcode-generator": "1.4.4"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",

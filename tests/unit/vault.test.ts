@@ -53,6 +53,126 @@ describe("parseVault", () => {
     expect(v.child?.name).toBe("Mira");
   });
 
+  it("migrates a v2 vault to v3, leaving entries intact", () => {
+    const raw = {
+      schemaVersion: 2,
+      generation: 2,
+      savedAt: "2026-03-03T21:14:00.000Z",
+      fileId: "abc",
+      child: null,
+      entries: [
+        {
+          id: "e1",
+          type: "letter",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          occasion: "First birthday",
+          title: "Hi",
+          body: "x",
+          photos: [],
+        },
+      ],
+      firstRunDone: false,
+    };
+    const v = parseVault(JSON.stringify(raw));
+    expect(v.schemaVersion).toBe(3);
+    expect(v.entries[0].title).toBe("Hi");
+    expect(v.entries[0].sealed).toBeUndefined();
+  });
+
+  it("migrates a v1 vault all the way to v3", () => {
+    const raw = {
+      schemaVersion: 1,
+      generation: 1,
+      savedAt: null,
+      fileId: "abc",
+      child: null,
+      entries: [
+        { id: "e1", type: "letter", createdAt: "2026-01-01T00:00:00.000Z", title: "Hi", body: "x" },
+      ],
+      firstRunDone: false,
+    };
+    const v = parseVault(JSON.stringify(raw));
+    expect(v.schemaVersion).toBe(3);
+    expect(v.entries[0].occasion).toBe("");
+    expect(v.entries[0].photos).toEqual([]);
+  });
+
+  it("parses a v3 vault with a sealed entry and preserves the blob", () => {
+    const raw = {
+      ...emptyVault(),
+      entries: [
+        {
+          id: "e1",
+          type: "letter",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          occasion: "",
+          title: "",
+          body: "",
+          photos: [],
+          sealed: {
+            iv: "AAAAAAAAAAAAAAAA",
+            ciphertext: "Y2lwaGVy",
+            keyHint: "In the birthday card",
+            sealedAt: "2026-02-14T00:00:00.000Z",
+            futureField: "keep-me",
+          },
+        },
+      ],
+    };
+    const v = parseVault(JSON.stringify(raw));
+    expect(v.entries[0].sealed?.keyHint).toBe("In the birthday card");
+    expect(v.entries[0].sealed?.ciphertext).toBe("Y2lwaGVy");
+    expect((v.entries[0].sealed as Record<string, unknown>).futureField).toBe("keep-me");
+  });
+
+  it("rejects a malformed sealed blob (missing iv)", () => {
+    const raw = {
+      ...emptyVault(),
+      entries: [
+        {
+          id: "e1",
+          type: "letter",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          occasion: "",
+          title: "",
+          body: "",
+          photos: [],
+          sealed: { ciphertext: "Y2lwaGVy", keyHint: "h", sealedAt: "2026-02-14T00:00:00.000Z" },
+        },
+      ],
+    };
+    expect(() => parseVault(JSON.stringify(raw))).toThrow(VaultParseError);
+  });
+
+  it("rejects a sealed blob with a non-string ciphertext", () => {
+    const raw = {
+      ...emptyVault(),
+      entries: [
+        {
+          id: "e1",
+          type: "letter",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          occasion: "",
+          title: "",
+          body: "",
+          photos: [],
+          sealed: { iv: "AAAA", ciphertext: 42, keyHint: "h", sealedAt: "2026-02-14T00:00:00.000Z" },
+        },
+      ],
+    };
+    expect(() => parseVault(JSON.stringify(raw))).toThrow(VaultParseError);
+  });
+
+  it("flags a v4 (newer-than-known) schemaVersion distinctly", () => {
+    try {
+      parseVault(JSON.stringify({ ...emptyVault(), schemaVersion: 4 }));
+      throw new Error("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(VaultParseError);
+      expect((err as VaultParseError).kind).toBe("newer-version");
+    }
+  });
+
   it("migrates a v1 vault, filling occasion and photos on every entry", () => {
     const raw = {
       schemaVersion: 1,

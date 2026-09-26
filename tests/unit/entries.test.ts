@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { foldDraft, sortedEntries } from "../../src/entries";
-import { emptyVault, type Entry, type Photo, type Vault } from "../../src/vault";
+import { foldDraft, foldSealed, isSealed, sortedEntries, unsealedEntries } from "../../src/entries";
+import { emptyVault, type Entry, type Photo, type Sealed, type Vault } from "../../src/vault";
 
 function photo(id: string): Photo {
   return { id, dataUrl: `data:image/jpeg;base64,${id}`, caption: id, w: 10, h: 10, bytes: 100 };
@@ -83,5 +83,65 @@ describe("foldDraft", () => {
     expect(next.entries[0].createdAt).toBe("2026-09-01T00:00:00.000Z");
     expect(next.entries[1]).toEqual(existing);
     expect(next.entries[1].photos).toEqual(existing.photos);
+  });
+});
+
+const SEALED: Sealed = {
+  iv: "AAAAAAAAAAAAAAAA",
+  ciphertext: "Y2lwaGVydGV4dA==",
+  keyHint: "In the birthday card",
+  sealedAt: "2026-09-26T00:00:00.000Z",
+};
+
+describe("isSealed / unsealedEntries", () => {
+  it("marks an entry sealed iff it carries a sealed blob", () => {
+    const open = entry("a", "2026-01-01T00:00:00.000Z");
+    const sealed: Entry = { ...entry("b", "2026-02-01T00:00:00.000Z"), sealed: SEALED };
+    expect(isSealed(open)).toBe(false);
+    expect(isSealed(sealed)).toBe(true);
+  });
+
+  it("excludes sealed entries from the book-facing selection", () => {
+    const open = entry("a", "2026-01-01T00:00:00.000Z");
+    const sealed: Entry = { ...entry("b", "2026-02-01T00:00:00.000Z"), sealed: SEALED };
+    expect(unsealedEntries([open, sealed]).map((e) => e.id)).toEqual(["a"]);
+  });
+});
+
+describe("foldSealed", () => {
+  it("replaces the target entry in place, emptying content and keeping createdAt", () => {
+    const first = entry("e1", "2026-01-01T00:00:00.000Z", ["p1"]);
+    const second = entry("e2", "2026-02-01T00:00:00.000Z", ["p2", "p3"]);
+    const vault = vaultWith(first, second);
+
+    const { next, entryId } = foldSealed(vault, SEALED, "e1", "unused", "2026-09-01T00:00:00.000Z");
+
+    expect(entryId).toBe("e1");
+    const sealed = next.entries.find((e) => e.id === "e1")!;
+    expect(sealed.createdAt).toBe("2026-01-01T00:00:00.000Z");
+    expect(sealed.title).toBe("");
+    expect(sealed.occasion).toBe("");
+    expect(sealed.body).toBe("");
+    expect(sealed.photos).toEqual([]);
+    expect(sealed.sealed).toEqual(SEALED);
+    // The other entry and its photos are byte-for-byte the same.
+    const other = next.entries.find((e) => e.id === "e2")!;
+    expect(other).toEqual(second);
+    expect(other.photos).toEqual(second.photos);
+  });
+
+  it("prepends a new sealed entry with empty content", () => {
+    const existing = entry("e1", "2026-01-01T00:00:00.000Z", ["p1"]);
+    const vault = vaultWith(existing);
+
+    const { next, entryId } = foldSealed(vault, SEALED, null, "new-id", "2026-09-01T00:00:00.000Z");
+
+    expect(entryId).toBe("new-id");
+    expect(next.entries[0].id).toBe("new-id");
+    expect(next.entries[0].createdAt).toBe("2026-09-01T00:00:00.000Z");
+    expect(next.entries[0].title).toBe("");
+    expect(next.entries[0].photos).toEqual([]);
+    expect(next.entries[0].sealed).toEqual(SEALED);
+    expect(next.entries[1]).toEqual(existing);
   });
 });

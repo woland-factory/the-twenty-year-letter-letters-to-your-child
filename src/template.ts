@@ -57,10 +57,26 @@ function orderPhoto(photo: Record<string, unknown>): Record<string, unknown> {
   return ordered(photo, ["id", "dataUrl", "caption", "w", "h", "bytes"]);
 }
 
+function orderSealed(sealed: Record<string, unknown>): Record<string, unknown> {
+  return ordered(sealed, ["iv", "ciphertext", "keyHint", "sealedAt"]);
+}
+
 function orderEntry(entry: Record<string, unknown>): Record<string, unknown> {
-  const out = ordered(entry, ["id", "type", "createdAt", "occasion", "title", "body", "photos"]);
+  const out = ordered(entry, [
+    "id",
+    "type",
+    "createdAt",
+    "occasion",
+    "title",
+    "body",
+    "photos",
+    "sealed",
+  ]);
   if (Array.isArray(out.photos)) {
     out.photos = out.photos.map((p) => orderPhoto(p as Record<string, unknown>));
+  }
+  if (out.sealed && typeof out.sealed === "object") {
+    out.sealed = orderSealed(out.sealed as Record<string, unknown>);
   }
   return out;
 }
