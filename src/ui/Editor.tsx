@@ -18,6 +18,10 @@ export function Editor({
   error,
   hint,
   canSave,
+  canSeal,
+  sealingReady,
+  sealing,
+  sealMessage,
   onTitle,
   onOccasion,
   onBody,
@@ -26,6 +30,7 @@ export function Editor({
   onMovePhoto,
   onRemovePhoto,
   onSave,
+  onSeal,
   onBack,
 }: {
   title: string;
@@ -38,6 +43,10 @@ export function Editor({
   error: string | null;
   hint: string | null;
   canSave: boolean;
+  canSeal: boolean;
+  sealingReady: boolean;
+  sealing: boolean;
+  sealMessage: string | null;
   onTitle: (v: string) => void;
   onOccasion: (v: string) => void;
   onBody: (v: string) => void;
@@ -46,6 +55,7 @@ export function Editor({
   onMovePhoto: (index: number, delta: number) => void;
   onRemovePhoto: (id: string) => void;
   onSave: () => void;
+  onSeal: () => void;
   onBack: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -193,6 +203,30 @@ export function Editor({
         onSave={onSave}
         onBack={onBack}
       />
+
+      <div class="seal-zone">
+        <button
+          type="button"
+          class="btn btn-tertiary btn-block"
+          onClick={onSeal}
+          disabled={!canSeal}
+        >
+          Seal this letter
+        </button>
+        {!sealingReady && (
+          <p class="muted seal-note">
+            This browser cannot seal letters. Open your file in an up-to-date browser to seal it.
+          </p>
+        )}
+        <div class="seal-status" role="status" aria-live="polite">
+          {sealing && <span class="muted">Sealing your letter</span>}
+        </div>
+        {sealMessage && (
+          <p class="seal-message" role="alert">
+            {sealMessage}
+          </p>
+        )}
+      </div>
     </main>
   );
 }

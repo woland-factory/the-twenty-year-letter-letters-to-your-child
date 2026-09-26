@@ -109,6 +109,19 @@ p {
   width: 100%;
 }
 
+/* Tertiary: quieter than secondary, for the rare and deliberate seal action. */
+.btn-tertiary {
+  background: transparent;
+  color: var(--ink-soft);
+  border-color: var(--line);
+  font-weight: 600;
+}
+
+.btn-tertiary:hover {
+  background: #f1ebe1;
+  color: var(--accent-strong);
+}
+
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
@@ -478,4 +491,274 @@ p {
   padding: 0.5rem 0.8rem;
   border-radius: 8px;
   z-index: 20;
+}
+
+/* Seal control in the editor: subordinate to Save, set apart above it. */
+.seal-zone {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.seal-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.95rem;
+}
+
+.seal-status {
+  min-height: 1.4rem;
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.seal-message {
+  color: var(--danger);
+  font-weight: 600;
+  margin: 0.4rem 0 0;
+}
+
+/* Seal dialog acknowledgement */
+.ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0.5rem 0 0;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.ack input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.15rem;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
+/* Sealed entry placeholder in the archive */
+.entry-sealed {
+  cursor: pointer;
+}
+
+.entry-lock {
+  font-size: 1.4rem;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  flex: 0 0 auto;
+}
+
+/* Key sheet */
+.key-sheet-backdrop {
+  overflow-y: auto;
+}
+
+.key-sheet {
+  background: var(--paper-raised);
+  border-radius: 16px;
+  padding: 1.4rem 1.25rem;
+  max-width: 34rem;
+  width: 100%;
+}
+
+.key-sheet-note {
+  color: var(--ink-soft);
+  margin-bottom: 0.5rem;
+}
+
+.key-sheet-hint {
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.key-sheet-subhead {
+  font-size: 1.05rem;
+  margin: 1rem 0 0.6rem;
+}
+
+.words-grid {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem 0.75rem;
+}
+
+@media (min-width: 32rem) {
+  .words-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.word {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+  background: var(--paper);
+}
+
+.word-num {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  min-width: 1.4rem;
+  text-align: right;
+}
+
+.word-text {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.key-sheet-qr {
+  margin-top: 0.5rem;
+}
+
+.qr {
+  width: 200px;
+  height: 200px;
+  max-width: 100%;
+}
+
+.qr svg {
+  display: block;
+}
+
+.key-sheet-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 1.25rem;
+}
+
+/* Unseal view */
+.unseal-hint {
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.words-input {
+  min-height: 8rem;
+}
+
+.word-count {
+  margin: 0.35rem 0 1rem;
+  font-size: 0.95rem;
+}
+
+.unseal-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.unseal-status {
+  min-height: 1.4rem;
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.unseal-error {
+  color: var(--danger);
+  font-weight: 600;
+  margin: 0.4rem 0 1rem;
+}
+
+/* Revealed sealed letter (read-only, in memory only) */
+.reveal-note {
+  background: var(--paper);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.75rem;
+  color: var(--ink-soft);
+  margin-bottom: 1rem;
+}
+
+.reveal-title {
+  margin-bottom: 0.25rem;
+}
+
+.reveal-occasion {
+  color: var(--accent-strong);
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.reveal-date {
+  margin-bottom: 1rem;
+}
+
+.reveal-body {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  margin-bottom: 1.25rem;
+}
+
+.reveal-photos {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.reveal-photo {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  background: var(--line);
+  display: block;
+}
+
+.reveal-caption {
+  margin: 0.35rem 0 0;
+  font-size: 0.95rem;
+}
+
+/* Print: only the key sheet, on one page, chrome hidden. */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  body {
+    background: #ffffff;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .key-sheet,
+  .key-sheet * {
+    visibility: visible;
+  }
+  .key-sheet-backdrop {
+    position: static;
+    background: none;
+    padding: 0;
+    display: block;
+  }
+  .key-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 100%;
+    padding: 0;
+    border-radius: 0;
+  }
+  .key-sheet-actions {
+    display: none;
+  }
+  .qr {
+    width: 160px;
+    height: 160px;
+  }
 }

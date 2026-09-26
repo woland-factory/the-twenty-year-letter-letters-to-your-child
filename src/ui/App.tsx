@@ -1,9 +1,9 @@
-// Coordinates the whole artifact: routes between the archive home and the
-// editor, owns the vault in memory, and drives every save path to a calm,
-// truthful outcome.
+// Coordinates the whole artifact: routes between the archive home, the editor,
+// and the unseal view, owns the vault in memory, and drives every save and seal
+// path to a calm, truthful outcome.
 
 import { useState } from "preact/hooks";
-import type { Vault, Photo } from "../vault";
+import type { Vault, Photo, Entry } from "../vault";
 import { SaveController } from "../save";
 import { randomId } from "../ids";
 import {
@@ -12,9 +12,20 @@ import {
   vaultPhotoBytes,
   wouldExceedBudget,
 } from "../photos";
-import { foldDraft } from "../entries";
+import { foldDraft, foldSealed, isSealed } from "../entries";
+import {
+  seal,
+  sealingAvailable,
+  unsealWithWords,
+  UnsealError,
+  type SealedPayload,
+} from "../seal";
+import { decodeQrFromFile, QrDecodeError } from "../qr";
 import { Home } from "./Home";
 import { Editor } from "./Editor";
+import { SealDialog } from "./SealDialog";
+import { KeySheet } from "./KeySheet";
+import { UnsealView } from "./UnsealView";
 import { StaleCopyDialog } from "./StaleCopyDialog";
 import { BackupRitual } from "./BackupRitual";
 import type { SavePhase } from "./SaveStatus";
@@ -24,8 +35,20 @@ const FIRST_SAVE_HINT =
 
 const NOT_AN_IMAGE_MSG = "That file is not a photo. Choose a JPEG or PNG image.";
 const BUDGET_MSG = "Your file has reached its photo limit. Remove a photo to add a new one.";
+const SEAL_FAILED_MSG = "Sealing did not finish. Your letter is unchanged.";
 
-type Route = "home" | "editor";
+const BAD_WORDS_MSG = "Those words do not match. Check each word and try again.";
+const WRONG_KEY_MSG = "That key does not open this letter. Check you have the right key sheet.";
+const QR_NOT_FOUND_MSG = "The code did not scan. Try a clearer photo of your key sheet.";
+
+type Route = "home" | "editor" | "unseal";
+type SealContext = { words: string[]; keyHint: string };
+
+function unsealMessageFor(err: unknown): string {
+  if (err instanceof QrDecodeError) return QR_NOT_FOUND_MSG;
+  if (err instanceof UnsealError && err.reason === "bad-words") return BAD_WORDS_MSG;
+  return WRONG_KEY_MSG;
+}
 
 export function App({
   initialVault,
@@ -53,6 +76,24 @@ export function App({
   const [ritual, setRitual] = useState<{ generation: number; savedAt: string } | null>(null);
   const [pending, setPending] = useState<Vault | null>(null);
 
+  // Seal state. sealCtx holds the words in memory across the save (and any
+  // stale prompt); keySheet is the once-shown surface after the ciphertext is
+  // safely on disk; sealMessage is the calm "did not finish" note on failure.
+  const [sealDialog, setSealDialog] = useState(false);
+  const [sealing, setSealing] = useState(false);
+  const [sealMessage, setSealMessage] = useState<string | null>(null);
+  const [sealCtx, setSealCtx] = useState<SealContext | null>(null);
+  const [keySheet, setKeySheet] = useState<SealContext | null>(null);
+
+  // Unseal state. The revealed payload lives only here, for display; it is never
+  // written back to the vault.
+  const [unsealEntry, setUnsealEntry] = useState<Entry | null>(null);
+  const [revealed, setRevealed] = useState<SealedPayload | null>(null);
+  const [unsealOpening, setUnsealOpening] = useState(false);
+  const [unsealError, setUnsealError] = useState<string | null>(null);
+
+  const sealingReady = sealingAvailable();
+
   function resetDraft() {
     setTitle("");
     setOccasion("");
@@ -62,6 +103,8 @@ export function App({
     setPhotoError(null);
     setPhase("idle");
     setSaveError(null);
+    setSealing(false);
+    setSealMessage(null);
   }
 
   function openWrite() {
@@ -73,6 +116,14 @@ export function App({
   function openEntry(id: string) {
     const entry = vault.entries.find((e) => e.id === id);
     if (!entry) return;
+    if (isSealed(entry)) {
+      setUnsealEntry(entry);
+      setRevealed(null);
+      setUnsealError(null);
+      setUnsealOpening(false);
+      setRoute("unseal");
+      return;
+    }
     setEditingId(id);
     resetDraft();
     setTitle(entry.title);
@@ -165,30 +216,81 @@ export function App({
     setSaveError(null);
     const { next, entryId } = buildVaultWithDraft();
     const result = await controller.save(next);
-    applyResult(result, next, entryId);
+    applyResult(result, next, entryId, null);
+  }
+
+  // The trust-critical seal path. Encrypt first, then save; the sealed vault is
+  // committed and the key sheet shown ONLY after the save resolves to "saved".
+  // On any other outcome the letter stays unsealed and the draft is untouched.
+  async function runSeal(keyHint: string) {
+    setSealDialog(false);
+    setSealMessage(null);
+    setSealing(true);
+    const payload: SealedPayload = { occasion, title, body, photos };
+    let sealed;
+    let words: string[];
+    try {
+      ({ sealed, words } = await seal(payload, keyHint, now.toISOString()));
+    } catch {
+      setSealing(false);
+      setSealMessage(SEAL_FAILED_MSG);
+      return;
+    }
+    const ctx: SealContext = { words, keyHint };
+    setSealCtx(ctx); // held across the save, and across a stale prompt if one appears
+    const { next, entryId } = foldSealed(vault, sealed, editingId, randomId(), now.toISOString());
+    const saveResult = await controller.save(next);
+    applyResult(saveResult, next, entryId, ctx);
   }
 
   function applyResult(
     result: Awaited<ReturnType<SaveController["save"]>>,
     attempted: Vault,
     entryId: string,
+    seal: SealContext | null,
   ) {
     if (result.status === "saved") {
       setVault(result.vault);
       setEditingId(entryId);
-      setPhase("saved");
-      if (result.via === "download" && result.vault.savedAt) {
-        setRitual({ generation: result.vault.generation, savedAt: result.vault.savedAt });
+      if (seal) {
+        // The ciphertext is now on disk, so the seal is real. Show the key once,
+        // return to the archive behind it, and drop the draft.
+        setSealCtx(null);
+        setSealing(false);
+        setPhase("idle");
+        resetDraft();
+        setRoute("home");
+        setKeySheet(seal);
+      } else {
+        setPhase("saved");
+        if (result.via === "download" && result.vault.savedAt) {
+          setRitual({ generation: result.vault.generation, savedAt: result.vault.savedAt });
+        }
       }
     } else if (result.status === "stale") {
       setPending(attempted);
       setStale({ diskGeneration: result.diskGeneration, myGeneration: result.myGeneration });
       setPhase("idle");
+      // sealCtx (if any) stays in memory so the key sheet can appear after the
+      // parent resolves the stale prompt to a saved replace.
+      if (seal) setSealing(false);
     } else if (result.status === "cancelled") {
       setPhase("idle");
+      if (seal) {
+        setSealCtx(null);
+        setSealing(false);
+        setSealMessage(SEAL_FAILED_MSG);
+      }
     } else {
-      setPhase("error");
-      setSaveError(result.message);
+      if (seal) {
+        setSealCtx(null);
+        setSealing(false);
+        setPhase("idle");
+        setSealMessage(SEAL_FAILED_MSG);
+      } else {
+        setPhase("error");
+        setSaveError(result.message);
+      }
     }
   }
 
@@ -198,15 +300,68 @@ export function App({
     const entryId = editingId ?? attempted.entries[0]?.id ?? "";
     setStale(null);
     setPhase("saving");
+    if (sealCtx) setSealing(true);
     const result = await controller.saveReplacingDisk(attempted);
     setPending(null);
-    applyResult(result, attempted, entryId);
+    applyResult(result, attempted, entryId, sealCtx);
   }
 
   function keepDiskCopy() {
     setStale(null);
     setPending(null);
     setPhase("idle");
+    if (sealCtx) {
+      // The parent kept the disk copy, so this seal did not save. Discard the
+      // words and leave the letter unsealed and intact.
+      setSealCtx(null);
+      setSealing(false);
+      setSealMessage(SEAL_FAILED_MSG);
+    }
+  }
+
+  function dismissKeySheet() {
+    // The words leave memory here. They were never in the vault.
+    setKeySheet(null);
+  }
+
+  async function unsealWords(words: string[]) {
+    const sealed = unsealEntry?.sealed;
+    if (!sealed) return;
+    setUnsealError(null);
+    setUnsealOpening(true);
+    try {
+      const payload = await unsealWithWords(sealed, words);
+      setRevealed(payload);
+    } catch (err) {
+      setUnsealError(unsealMessageFor(err));
+    } finally {
+      setUnsealOpening(false);
+    }
+  }
+
+  async function unsealQr(file: File) {
+    const sealed = unsealEntry?.sealed;
+    if (!sealed) return;
+    setUnsealError(null);
+    setUnsealOpening(true);
+    try {
+      const text = await decodeQrFromFile(file);
+      const words = text.trim().split(/\s+/).filter(Boolean);
+      const payload = await unsealWithWords(sealed, words);
+      setRevealed(payload);
+    } catch (err) {
+      setUnsealError(unsealMessageFor(err));
+    } finally {
+      setUnsealOpening(false);
+    }
+  }
+
+  function closeUnseal() {
+    setRoute("home");
+    setUnsealEntry(null);
+    setRevealed(null);
+    setUnsealError(null);
+    setUnsealOpening(false);
   }
 
   const hint = controller.needsFilePick() ? FIRST_SAVE_HINT : null;
@@ -215,15 +370,18 @@ export function App({
     occasion.trim().length > 0 ||
     body.trim().length > 0 ||
     photos.length > 0;
+  const canSeal =
+    canSave && sealingReady && photosBusy === 0 && phase !== "saving" && !sealing;
 
   return (
     <>
       <a class="skip" href="#main">
         Skip to content
       </a>
-      {route === "home" ? (
+      {route === "home" && (
         <Home vault={vault} now={now} onWrite={openWrite} onOpenEntry={openEntry} />
-      ) : (
+      )}
+      {route === "editor" && (
         <Editor
           title={title}
           occasion={occasion}
@@ -235,6 +393,10 @@ export function App({
           error={saveError}
           hint={hint}
           canSave={canSave}
+          canSeal={canSeal}
+          sealingReady={sealingReady}
+          sealing={sealing}
+          sealMessage={sealMessage}
           onTitle={setTitle}
           onOccasion={setOccasion}
           onBody={setBody}
@@ -243,8 +405,29 @@ export function App({
           onMovePhoto={movePhoto}
           onRemovePhoto={removePhoto}
           onSave={runSave}
+          onSeal={() => setSealDialog(true)}
           onBack={backToLetters}
         />
+      )}
+      {route === "unseal" && unsealEntry && (
+        <UnsealView
+          entry={unsealEntry}
+          revealed={revealed}
+          opening={unsealOpening}
+          error={unsealError}
+          now={now}
+          onSubmitWords={unsealWords}
+          onSubmitQr={unsealQr}
+          onClose={closeUnseal}
+        />
+      )}
+
+      {sealDialog && (
+        <SealDialog onConfirm={runSeal} onCancel={() => setSealDialog(false)} />
+      )}
+
+      {keySheet && (
+        <KeySheet words={keySheet.words} keyHint={keySheet.keyHint} onDismiss={dismissKeySheet} />
       )}
 
       {stale && (

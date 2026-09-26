@@ -41,6 +41,25 @@ export function sampleVault(): Vault {
           "Love,\nDad",
         photos: [SAMPLE_PHOTO],
       },
+      // A sealed letter, so the demo archive shows the locked state at a glance.
+      // Its key was thrown away at authoring time, so it stays sealed forever.
+      // The ciphertext holds a short throwaway note and no photos.
+      {
+        id: "sample-sealed-1",
+        type: "letter",
+        createdAt: "2026-02-14T09:00:00.000Z",
+        occasion: "",
+        title: "",
+        body: "",
+        photos: [],
+        sealed: {
+          iv: "U2fTvI4/n2MwNKVE",
+          ciphertext:
+            "+8VDyPyGfLUQdFzrVpv93i9w1+QlyfOMRzDGSR6JLolZ3a7tOrWgjICeFqsYwbz5o9LnpgfoUDt7hA4SnbaOhr6CVVAInebZc0tDJupVXmcIA9zjAFpnjBO2WPJpmxGedimIXiliS1SJJRmwKRoigQ8mBe4SGc4GqLy41pXeDQ==",
+          keyHint: "In Mira's first birthday card",
+          sealedAt: "2026-02-14T09:00:00.000Z",
+        },
+      },
     ],
     firstRunDone: false,
   };

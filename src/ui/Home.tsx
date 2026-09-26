@@ -5,7 +5,7 @@
 
 import type { Vault } from "../vault";
 import { formatCopyLine, formatEntryCount, formatSavedMoment } from "../format";
-import { sortedEntries } from "../entries";
+import { isSealed, sortedEntries } from "../entries";
 
 function IntegrityReadout({ vault, now }: { vault: Vault; now: Date }) {
   const count = formatEntryCount(vault.entries.length);
@@ -57,6 +57,34 @@ export function Home({
           <IntegrityReadout vault={vault} now={now} />
           <ul class="entries">
             {sortedEntries(vault.entries).map((entry) => {
+              // A sealed entry has no readable content in the file, so it shows
+              // as a locked placeholder: a lock, "Sealed letter", the key hint,
+              // and the date. Opening it routes to the unseal view.
+              if (isSealed(entry)) {
+                const keyHint = entry.sealed?.keyHint ?? "";
+                return (
+                  <li key={entry.id}>
+                    <button
+                      type="button"
+                      class="entry entry-sealed"
+                      onClick={() => onOpenEntry(entry.id)}
+                    >
+                      <span class="entry-lock" aria-hidden="true">
+                        🔒
+                      </span>
+                      <span class="entry-text">
+                        <span class="entry-title">
+                          <span class="visually-hidden">Sealed. </span>Sealed letter
+                        </span>
+                        {keyHint && <span class="entry-occasion">{keyHint}</span>}
+                        <span class="entry-date">
+                          Written {formatSavedMoment(entry.createdAt, now)}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              }
               const cover = entry.photos?.[0];
               const title = entry.title || "Untitled letter";
               return (
