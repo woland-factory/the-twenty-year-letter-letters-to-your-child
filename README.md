@@ -24,6 +24,9 @@ try a live copy.
   key that never touches the file. Its key prints as 24 words and a QR code for
   the birthday card or a drawer. Years later the words or a photo of the QR open
   the letter on any offline computer.
+- **A printable book, always current.** Every open letter typesets into one book
+  you can preview and print. It is the paper fallback: if a browser someday will
+  not open the file, the printed book still holds the letters and photos.
 
 ## Run it
 
@@ -117,6 +120,7 @@ src/
   qr.ts               QR encode for the key sheet, QR decode for unsealing
   save/               capability detection, both save paths, generation logic
   ui/                 Preact components: home, editor, seal, key sheet, unseal
+  ui/BookView.tsx     the printable book: unsealed letters typeset for print
 site/                 landing page and its assembler
 scripts/              site build, static server, e2e wrapper, container entry
 tests/unit            Vitest unit and integration tests
