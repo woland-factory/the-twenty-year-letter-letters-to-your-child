@@ -2,7 +2,6 @@
 // exact strings a parent reads are unit-tested.
 
 export function formatEntryCount(count: number): string {
-  if (count === 0) return "No letters yet";
   if (count === 1) return "1 letter";
   return `${count} letters`;
 }

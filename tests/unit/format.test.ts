@@ -8,7 +8,7 @@ import {
 
 describe("formatEntryCount", () => {
   it("phrases counts as a human would", () => {
-    expect(formatEntryCount(0)).toBe("No letters yet");
+    expect(formatEntryCount(0)).toBe("0 letters");
     expect(formatEntryCount(1)).toBe("1 letter");
     expect(formatEntryCount(3)).toBe("3 letters");
   });

@@ -11,7 +11,7 @@ function IntegrityReadout({ vault, now }: { vault: Vault; now: Date }) {
   const saved =
     vault.savedAt !== null
       ? `Saved ${formatSavedMoment(vault.savedAt, now)}.`
-      : "Not saved to your file yet.";
+      : "Save to keep your first copy.";
   return (
     <div class="readout">
       <div class="readout-line">
