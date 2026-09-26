@@ -1,24 +1,29 @@
-# EPIC SPEC — The yearly interview ritual
+# EPIC SPEC — First-run walkthrough
 
 *The Twenty-Year Letter: letters to your child that no company has to survive.*
 
-This EPIC adds the ritual engine. Once a year the parent sits with their child
-and answers a short set of age-aware prompts. A three-year-old's interview reads
-differently from a twelve-year-old's, because the prompt set is chosen from the
-child's current age. The answers are recorded verbatim, saved as an interview
-entry that lives next to that year's letters, and shown in both the archive and
-the printable book. A calm, dismissible nudge appears around the child's
-birthday so the ritual is easy to keep for two decades, and it never nags.
+This EPIC adds the guided path that walks a brand-new parent through the core
+loop once: write a letter, save it to their own file, understand which saved copy
+to reopen, and seal a letter. The path points at the real controls one short
+imperative step at a time, is skippable at every step, and appears only until the
+parent's first success. Once the parent has saved or sealed, the walkthrough is
+dismissed permanently by setting `firstRunDone` on the saved vault, and a
+returning parent (a vault with content or `firstRunDone`) never sees it again.
 
-This EPIC builds on the shipped spine (EPIC 1), the writing room (EPIC 2),
-sealed letters (EPIC 3), and the printable book (EPIC 4): the single
-self-contained `.html` artifact, the byte-stable self-carrying save on both
+This EPIC builds on the shipped product (EPIC 1 through EPIC 5): the single
+self-contained `.html` artifact with byte-stable self-carrying save on both
 browser paths, the `Vault`/`Entry` model with forward-only migration in
-`src/vault.ts`, the archive in `src/ui/Home.tsx`, the seal/unseal flow with
-`isSealed`/`unsealedEntries` in `src/entries.ts`, and the live-derived book in
-`src/ui/BookView.tsx`. Do not rebuild or re-architect any of that. The interview
-is a new entry type that flows through the existing save, seal, archive, and
-book machinery.
+`src/vault.ts` (which already declares the unused `firstRunDone` field), the
+archive in `src/ui/Home.tsx`, the writing room in `src/ui/Editor.tsx`, the seal
+flow through `src/ui/SealDialog.tsx` and `src/ui/KeySheet.tsx`, the
+download-path `src/ui/BackupRitual.tsx`, and the App controller in
+`src/ui/App.tsx`. Do not rebuild or re-architect any of that. The walkthrough is
+a thin, non-modal guide layered over the existing screens. It adds no new route,
+no new save path, and no new data beyond finally consuming `firstRunDone`.
+
+`firstRunDone` exists in the model (`src/vault.ts`), is serialized
+(`src/template.ts`), and is set to `true` in several test fixtures already, but
+no shipped screen reads or writes it. This EPIC is the first and only consumer.
 
 ---
 
@@ -30,23 +35,28 @@ never fears loss across an eighteen-year commitment.
 
 What it demands of THIS EPIC's work:
 
-1. **A sealed interview must leak nothing.** An interview holds a child's own
-   words. When the parent seals it, the answers and the child's age must be
-   encrypted and removed from the file exactly like a sealed letter's body. A
-   sealed interview that leaves any answer text or age readable in the saved
-   JSON is a trust failure, not a cosmetic bug. This is the single riskiest line
-   in the EPIC (see Technical design, `foldSealed`).
-2. **Recording feels as safe as writing a letter.** The interview saves through
-   the same save controller, the same stale-copy protection, and the same
-   truthful "Saved" readout as a letter. Nothing about the ritual introduces a
-   new way to lose work or a new fear.
-3. **The nudge is a gentle tap, never a nag.** One calm, dismissible line around
-   the birthday. It disappears the moment this year's interview is recorded, and
-   it never shows outside the birthday window. A parent must never feel chased by
-   their own keepsake.
+1. **The walk builds trust in exactly the two fear points.** The whole reason a
+   first-run guide exists here is to carry a nervous parent past the two moments
+   the product lives or dies on: pressing Save for the first time (where does my
+   file go, is it safe) and pressing Seal (is this really irreversible). The
+   walkthrough must lead the parent through a real save and, if they choose, a
+   real seal, so their first contact with both scary steps happens with a calm
+   hand on their shoulder. A walk that stops before a real save has not done its
+   job.
+2. **The guide never becomes the thing to fear.** It must never block a control,
+   trap focus, cover the button it is pointing at, hijack the keyboard, or make
+   the parent feel chased. It is a quiet strip that points and then gets out of
+   the way, skippable at every step. If the guide itself feels like software the
+   parent could get stuck in, it has failed the differentiator.
+3. **It disappears cleanly and stays gone.** After the first save or seal it is
+   dismissed permanently through `firstRunDone`, persisted on that same save. A
+   returning parent, and a reviewer opening the seeded demo, must never be trapped
+   in it. The demo shows the sealed-letter differentiator within a minute with no
+   walkthrough in the way.
 
-When any choice here is open, choose the option that keeps the child's words
-safe and the ritual calm.
+When any choice here is open, choose the option that keeps the parent calm and
+in control: point, do not block; suggest, do not trap; and make Skip always one
+tap away.
 
 ---
 
@@ -54,534 +64,340 @@ safe and the ritual calm.
 
 ### In scope
 
-- **A finite, age-aware prompt pack (`src/interview.ts`, new).** A fixed set of
-  age bands, each with its own written-once prompts, covering the child's first
-  year through the teens. The pack is plain data in the code. There is no runtime
-  generation of prompts.
-- **Age derivation from `child.birthDate`.** A pure `ageInYears(birthDate, now)`
-  helper returns the child's whole-year age. Starting a new interview selects the
-  prompt band for that age.
-- **A birth-date capture step, shown only when it is missing.** No screen in the
-  shipped app sets `child.birthDate` today. The interview cannot derive an age
-  without it, and no other EPIC owns this. So the interview flow captures it: when
-  `child.birthDate` is absent or unparseable, the first step of the interview asks
-  for the child's birth date (required) and name (optional), and both are saved
-  into `vault.child` together with the interview entry on the same save. When a
-  birth date already exists, this step is skipped. This is a focused precondition
-  of the ritual, not a general settings screen (see Non-Goals).
-- **An interview flow (`src/ui/InterviewView.tsx`, new).** A `"interview"` route
-  that presents the selected band's prompts, each with a text area for the child's
-  answer. The parent records answers verbatim, then saves. The entry stores the
-  child's age at the time and every prompt with its verbatim answer.
-- **Interview entries in the model.** `Entry.type` gains `"interview"`.
-  Interview entries carry `childAgeYears` and an `answers` array
-  (`{promptId, promptText, answerText}`) when unsealed. Forward-only schema bump
-  (v3 to v4).
-- **Interviews in the archive.** `src/ui/Home.tsx` lists interview entries
-  alongside letters, visibly labelled as interviews, opening back into the
-  interview flow (in edit mode) so reopening restores every recorded answer.
-- **Interviews in the book.** `src/ui/BookView.tsx` typesets each unsealed
-  interview: its title, its date, and each prompt with its answer, alongside the
-  letters. This completes the interview-rendering boundary EPIC 4 left open.
-- **Sealing an interview.** An interview can be sealed like any letter, through
-  the existing seal dialog and key-sheet flow. Sealing encrypts the answers and
-  age, strips them from the file, and leaves only the `{iv, ciphertext, keyHint,
-  sealedAt}` blob. Unsealing restores the answers on screen only.
-- **A birthday-cadence nudge.** A pure `birthdayNudge(vault, now)` helper decides
-  whether to show one calm, dismissible line on the archive around the child's
-  birthday. It shows only inside a fixed window around the birthday, only when a
-  birth date is known, and only when this year's interview has not been recorded
-  yet. Its action opens the interview. Dismissing it hides it for the session.
-- **Designed states, mobile-first, accessible, swept copy.** The interview flow,
-  the capture step, the nudge, and the interview rendering in the archive and book
-  are all designed surfaces, fully usable at 390px, keyboard reachable, and their
-  copy passes the sweep.
-- **A sample interview in the live demo (`src/sample.ts`).** So staging shows the
-  new ritual within a minute without typing (QUALITY BAR §4), add one inert,
-  unsealed sample interview entry to `sampleVault()`, consistent with the existing
-  sample child.
+- **A pure walkthrough model (`src/walkthrough.ts`, new).** The ordered step
+  list, the one-sentence copy for each step, and the pure predicate that decides
+  whether a brand-new parent should see the walk at boot. No Preact import; fully
+  unit-tested.
+- **A non-modal coach strip (`src/ui/Walkthrough.tsx`, new).** A small pinned
+  region that shows the current step's single imperative sentence, a quiet step
+  indicator, and a Skip control. It never covers or disables the control it points
+  at, and it is not a focus trap.
+- **Highlighting the real control for the current step.** The archive's "Write a
+  letter" button, the editor's Save button, the save confirmation readout, and
+  the editor's "Seal this letter" button are visibly emphasized when they are the
+  current step's target, so the parent's eye goes straight to the real control.
+- **Step progression driven by real actions.** Opening the editor advances past
+  "write"; a successful save advances past "save"; acknowledging the backup
+  guidance advances past "backup"; a successful seal completes the walk. No step
+  advances on anything other than the parent doing (or acknowledging) the real
+  thing.
+- **Permanent dismissal through `firstRunDone`.** The first successful save or
+  seal writes `firstRunDone: true` into the saved vault, so the file itself
+  records that first-run is done. The walkthrough is gated on `firstRunDone` and
+  on whether the vault already holds entries, so a returning parent never sees it.
+- **Skip at every step.** A single Skip control on the coach strip hides the walk
+  for the rest of the session. Skipping before any save writes nothing (the app
+  never saves without the parent's Save press), so a parent who skips an untouched
+  starter file may see the walk again on the next open. That is correct: they have
+  not yet had their first success.
+- **The seeded demo is never trapped.** On staging with `SEED_DEMO`, the demo
+  vault already carries entries, so the walkthrough does not show and the reviewer
+  reaches the sealed-letter differentiator within a minute. To make the intent
+  explicit and self-documenting, also set `firstRunDone: true` in `sampleVault()`.
+- **Designed, mobile-first, accessible, swept.** The coach strip is a designed
+  surface, fully usable at 390px, keyboard reachable with visible focus, announced
+  politely to assistive tech, and every visible string passes the copy sweep. It
+  carries `no-print` so it never appears in the printed book or key sheet.
 
 ### Out of scope (Non-Goals — do not build)
 
-- **An LLM generating prompts at runtime.** The finite pack is the whole MVP.
-  Prompt-variety via a BYOK model is a future garnish and explicitly out of scope
-  here. Add no LLM client, no network call, no BYOK settings.
-- **Audio (or video) recording of answers.** Answers are typed text only. Do not
-  add a microphone, recorder, or media capture.
-- **Scheduled email reminders.** The nudge is an in-app line driven by the clock
-  and the vault. Do not add the mailer, any scheduled job, or any notification
-  that leaves the file.
-- **A general Settings screen.** The birth-date capture is a single focused step
-  gating the interview. Do not build a settings hub, backup-reminder settings, a
-  child-profile editor with avatars, multiple children, or any child field beyond
-  the existing `{name, birthDate}`.
-- **Editing the prompt pack from the UI.** The pack is fixed code. No prompt
-  editor, no custom prompts, no reordering UI, no "add your own question" for MVP.
-- **Any network request from the artifact, ever.** The interview renders and
-  saves entirely offline, exactly like every other part of the file. Adding the
-  pack or the nudge must not add a single fetch, CDN load, or `eval`.
-- **Changing the save mechanism, the seal/crypto primitives, the CSP,
-  `index.html`, stale-copy detection, the distribution site, the Dockerfile, or
-  the staging deploy.** The interview reuses the shipped save and seal flows and
-  changes none of these. The only model change is the additive v3-to-v4
-  migration and the additive `SealedPayload` fields described below.
-- **A first-run walkthrough.** The guided path is EPIC 6. The nudge is not a
-  walkthrough and must not grow into one.
+- **A tutorial video.** No video, no animation sequence, no media of any kind.
+- **A multi-page onboarding wizard.** The walk is a strip over the real screens,
+  not a full-screen takeover, not a carousel of instruction pages, not a modal
+  the parent has to click through before reaching the app. The real controls are
+  always visible and usable underneath.
+- **A re-triggerable tour.** There is no "show me the walkthrough again" button,
+  no help menu entry, no settings toggle, no replay. Once first-run is done it is
+  done. Do not add a way to bring it back.
+- **A new route, screen, or data model change.** The walk reuses the existing
+  home, editor, seal, and backup surfaces. It adds no `Route`, no schema bump, no
+  migration, and no vault field beyond consuming the existing `firstRunDone`.
+- **Autosave or any save the parent did not press.** Permanent dismissal comes
+  from a real Save or Seal that the parent performs. The walkthrough must never
+  trigger a background write to persist its own state. Skip is session-only.
+- **Changing the save mechanism, the seal or crypto primitives, the CSP,
+  `index.html`, stale-copy detection, the interview flow, the book, the
+  distribution site, the Dockerfile, or the staging deploy.** The only behavioral
+  change to existing save/seal paths is that the outgoing vault now carries
+  `firstRunDone: true`.
+- **Any network request from the artifact, ever.** The walkthrough is pure client
+  state. It adds no fetch, no CDN load, no `eval`.
 
 ---
 
 ## Quality bar as it applies here
 
-The quality bar is binding spec. The clauses that bite in this EPIC:
+The quality bar is binding spec. §4 (first-run) and §7 (radically simple
+interface) are the load-bearing clauses for this EPIC and must be met together:
+the walk points at controls one short step at a time and never lectures.
 
-- **Perceived speed (§1).** The interview view, the prompt selection, and the
-  nudge all render synchronously from in-memory state. Opening the interview is
-  instant. Saving reuses the existing `SaveControls` feedback (pressed state,
-  "Saving", "Saved") so the parent sees feedback within 100ms. There are no
-  queries and no network on any path.
-- **Mobile-first (§2).** The interview flow (capture step and prompts), the nudge
-  banner, and the interview rows in the archive and pages in the book are fully
-  usable at 390px: no horizontal scroll, ~44px touch targets, readable text,
-  answer text areas comfortable to type in on a phone.
-- **Designed states (§3).** The interview has designed surfaces, not accidents:
-  the capture step explains why the birth date is needed in one plain line; the
-  prompt form has a clear primary "Save this interview" action; an interview with
-  every answer left blank still saves (recording nothing this year is allowed) and
-  the archive/book render it without breaking. There is no network error path to
-  invent; the only error surface is the shared save-error state, reused as-is.
-- **First-run (§4) — boundary with EPIC 6.** No walkthrough here. The interview
-  entry point and the nudge must teach by looking: a clearly labelled control and
-  one plain nudge line. On staging the sample interview makes the ritual visible
-  in the archive and the book within a minute without typing.
+- **Perceived speed (§1).** The coach strip renders synchronously from in-memory
+  state. Showing, advancing, and hiding it are instant with no network and no
+  query. Highlighting a control is a class toggle. There is no perceptible delay
+  between a real action and the step advancing.
+- **Mobile-first (§2).** At 390px the coach strip fits with no horizontal scroll,
+  does not cover the control it points at, and its Skip (and the "Got it" advance
+  on the backup step) are ~44px tappable targets with readable text. The strip
+  sits where it does not fight the on-screen primary action on a phone.
+- **Designed states (§3).** The walk is itself a designed surface, not an
+  accident: a clear current-step line, a quiet step indicator, an always-present
+  Skip. There is no loading or error state to invent (it is pure local state).
+- **First-run (§4) — this is the EPIC.** A brand-new parent is actively led
+  through completing the core action once: a short guided path (2 to 4 steps)
+  anchored to the real controls, each step one short imperative sentence, a
+  highlighted next step. It is skippable at any step, appears only until the first
+  success, and never again after. A clear layout alone does not satisfy this; the
+  guide is what turns a curious visitor into a parent who has safely saved and
+  sealed once. The example the parent finishes is their own real first letter, and
+  it produces real output (a saved file, and if they seal, a printed key).
+- **Radically simple interface (§7).** The walk must not add words to the screen
+  or prop up a confusing layout. Each step is ONE short imperative sentence. The
+  strip has exactly one obvious control to move forward at the manual step (the
+  backup "Got it") and one quiet Skip. It never competes with the screen's own
+  primary action. It points at a control instead of explaining it. If the walk
+  needs a paragraph to make a screen usable, the screen is the bug, not the walk.
 - **Security hygiene (§5).** The artifact has no server, so route-authorization
-  and rate-limiting clauses are not applicable and must not be invented.
-  Applicable here: make zero network requests; render every answer and prompt as
-  text (Preact escapes it); never log answer text, the child's name, or the birth
-  date; validate the new model fields at the parse boundary (`validateEntry`);
-  and, above all, ensure a sealed interview carries no plaintext answers or age
-  (§ differentiator point 1).
-- **Accessibility (§6).** The interview view is a `<main>` landmark with one
-  `<h1>`. Each prompt's answer field is a labelled control (the prompt text is the
-  label). The birth-date and name inputs are labelled. The nudge is a region with
-  its own heading and a real, keyboard-reachable dismiss button with an
-  `aria-label`. In the book, each interview is an `<article>` with an `<h2>`
-  title; prompts and answers use a semantic structure (a definition list, or a
-  question heading followed by the answer). Visible focus on every control.
-- **Radically simple interface (§7).** One obvious primary action per surface:
-  in the interview, "Save this interview" is primary and "Back to letters" is the
-  subordinate return; the seal action is visibly subordinate (mirror the editor's
-  `seal-zone`). In the capture step, "Continue" is the single primary action. On
-  the archive the primary action stays "Write a letter"; "Record an interview" and
-  "Open the book" are subordinate. The nudge is a single calm line with one action
-  and a quiet dismiss, never a modal that blocks the archive. Cut words: prompts
-  are one short question each; the capture line is one sentence.
-- **Copy (§8).** Every new visible string, and every prompt in the pack, reads
-  like a person wrote it: no em-dashes or dash-asides, positive and direct
-  phrasing, no banned LLM vocabulary, no negative empty-state phrasing. The pack
-  ships verbatim, so it is swept here in this spec and again by the implementer,
-  and guarded by an automated test (see Test plan). This is AC4.
-- **README (§9).** Add `src/interview.ts` and `src/ui/InterviewView.tsx` to the
+  and rate-limiting are not applicable and must not be invented. Applicable here:
+  make zero network requests, log nothing (the walk sees no PII), and persist
+  `firstRunDone` only through the existing, parent-initiated save.
+- **Accessibility (§6).** The coach strip is a labelled region (for example
+  `role="region"` with an `aria-label` such as "Getting started", or a heading it
+  is labelled by). The current step line is announced politely via an
+  `aria-live="polite"` region so a step change is spoken without stealing focus.
+  The strip is NOT a focus trap and NOT `aria-modal`: keyboard users must still
+  reach the highlighted real control and everything else on the page. Skip and the
+  backup "Got it" are real buttons, keyboard reachable, with visible focus. The
+  control highlight is a visible outline or ring, never color alone, and never
+  relies on the highlight to convey meaning that the step line does not also state.
+- **Copy (§8).** Every visible string reads like a person wrote it: no em-dashes
+  or dash-asides, positive and direct phrasing, no banned LLM vocabulary, no
+  negative empty-state phrasing. The step copy ships verbatim from
+  `src/walkthrough.ts`; it is swept here and again by the implementer, and locked
+  by an automated test (see Test plan).
+- **README (§9).** Add `src/walkthrough.ts` and `src/ui/Walkthrough.tsx` to the
   "Where the code lives" module list, and add one plain line to "What makes it
-  different" about the yearly age-aware interview. Keep the run/test commands
-  accurate. No pipeline jargon.
+  different" about the first-run guide that walks a new parent through their first
+  save and seal. Keep the run/test commands accurate. No pipeline jargon.
 
 ---
 
 ## Technical design
 
-### Data model (`src/vault.ts`)
+### Walkthrough model (`src/walkthrough.ts`, new)
 
-Forward-only, additive. A v3 vault has no interview entries, so the migration
-only raises the version; existing entries are untouched.
-
-- Bump `SCHEMA_VERSION` from `3` to `4`.
-- Add the answer type:
-  ```ts
-  export type InterviewAnswer = {
-    promptId: string;   // stable id of the prompt as asked
-    promptText: string; // the exact question text asked, stored verbatim
-    answerText: string; // the child's answer, stored verbatim (may be "")
-  };
-  ```
-  `promptText` is stored on the entry (not looked up from the pack at render
-  time) so an interview recorded in 2030 always shows the 2030 wording, even if
-  the pack is edited in a later version. This is the 20-year-artifact rule: the
-  entry is self-describing.
-- Extend `Entry`:
-  ```ts
-  export type Entry = {
-    id: string;
-    type: "letter" | "interview";
-    createdAt: string;
-    occasion: string;
-    title: string;
-    body: string;              // "" on an interview and on a sealed entry
-    photos: Photo[];           // [] on an interview and on a sealed entry
-    childAgeYears?: number;    // interview-only, present iff unsealed
-    answers?: InterviewAnswer[]; // interview-only, present iff unsealed
-    sealed?: Sealed;
-    [extra: string]: unknown;
-  };
-  ```
-  Interview entries keep `occasion`, `title`, `body`, and `photos` present (with
-  `body: ""`, `photos: []`) so they satisfy the existing `validateEntry` shape
-  and the existing archive/book renderers never see an undefined field.
-- Add `migrateV2toV3`'s sibling `migrateV3toV4(data)`: return
-  `{ ...data, schemaVersion: 4 }`. Wire it into `migrate()` with
-  `if (data.schemaVersion === 3) data = migrateV3toV4(data);`.
-- Extend `validateEntry`:
-  - Accept `value.type === "letter" || value.type === "interview"` (reject any
-    other type with the existing "An entry has an unknown type." message).
-  - When `value.answers !== undefined`: it must be an array; each item must be an
-    object with string `promptId`, `promptText`, and `answerText`. Throw a
-    `VaultParseError` with a plain message ("An interview answer is not
-    readable.") otherwise. Preserve the entry's own object so unknown fields
-    survive (same pattern as photos/sealed).
-  - When `value.childAgeYears !== undefined`: it must be a finite number
-    (reuse `isFiniteNumber`), else throw ("An interview age is not readable.").
-  - Do not require `answers`/`childAgeYears` (a sealed interview has neither).
-- `emptyVault()` already uses `SCHEMA_VERSION`, so it becomes v4 automatically.
-
-### Serialization order (`src/template.ts`)
-
-`ordered()` already appends unknown keys in sorted order, so new fields are never
-dropped. For deterministic, intentional ordering, add the two fields to the
-`orderEntry` known-order list, placed before `sealed`:
-```
-["id", "type", "createdAt", "occasion", "title", "body", "photos",
- "childAgeYears", "answers", "sealed"]
-```
-No other change to `template.ts`.
-
-### Prompt pack, age, and nudge (`src/interview.ts`, new)
-
-All pure and unit-tested. No Preact import.
+Pure, no Preact import, fully unit-tested. It owns the step order, the copy, and
+the boot predicate.
 
 ```ts
-export type Prompt = { id: string; text: string };
-export type PromptBand = { id: string; minAge: number; maxAge: number; prompts: Prompt[] };
-```
+import type { Vault } from "./vault";
 
-- **`AGE_BANDS: PromptBand[]`** — the finite pack, covering the first year
-  through the teens (see "The prompt pack" below). Bands are contiguous and
-  non-overlapping.
-- **`ageInYears(birthDateIso: string, now: Date): number | null`** — whole years
-  from birth date to `now` (calendar-correct: not yet had this year's birthday
-  means one year younger). Returns `null` for an unparseable or future date so
-  callers can guard. Never negative.
-- **`promptsForAge(ageYears: number): PromptBand`** — the band whose
-  `[minAge, maxAge]` contains `ageYears`. Clamp below the youngest band to the
-  youngest, and at or above the oldest band's `minAge` to the oldest, so every
-  non-negative age resolves to a non-empty band.
-- **`interviewTitle(ageYears: number): string`** — the entry's derived title.
-  Age `0` returns `"Interview in the first year"`; age `n >= 1` returns
-  `` `Interview at age ${n}` ``. Swept, plain.
-- **`birthdayNudge(vault: Vault, now: Date): { age: number } | null`** — returns
-  `{ age }` when the nudge should show, else `null`. It shows only when:
-  - `vault.child?.birthDate` parses to a real date, AND
-  - `now` is within `NUDGE_WINDOW_DAYS` (14) before or after the birthday
-    anniversary in `now`'s vicinity, AND
-  - no unsealed interview entry already has `childAgeYears === age`, where `age`
-    is the age the child reaches at that anniversary
-    (`anniversaryYear - birthYear`).
-  A birthday of Feb 29 is matched on Feb 28 in non-leap years. The helper is pure
-  and takes `now` explicitly so it is fully unit-testable. (A sealed interview has
-  no readable age, so it does not count as "recorded"; this is an accepted edge,
-  and the nudge is dismissible.)
+export type WalkStep = "write" | "save" | "backup" | "seal";
 
-Keep every string in this module swept: it is user-visible copy shipped verbatim.
+// The ordered path. Four steps, mapping one-to-one to the planner's anchors:
+// write a letter, save the file, understand the backup copy, seal once.
+export const WALK_STEPS: WalkStep[] = ["write", "save", "backup", "seal"];
 
-### The prompt pack (ships verbatim — already copy-swept)
-
-Seven contiguous bands. Prompt `id`s are stable (`<bandId>-<n>`). Each prompt is
-one short question. For the first-year band the parent answers on the child's
-behalf; from there the child answers in their own words. All strings below
-contain no `—`/`–`, no banned vocabulary, positive phrasing.
-
-- **Band `first-year` (minAge 0, maxAge 0):**
-  1. `first-year-1` — "What makes you laugh right now?"
-  2. `first-year-2` — "What are you learning to do this month?"
-  3. `first-year-3` — "How do you like to be held and comforted?"
-  4. `first-year-4` — "What sound or song calms you down?"
-  5. `first-year-5` — "What do I want to remember about you at this age?"
-
-- **Band `toddler` (minAge 1, maxAge 2):**
-  1. `toddler-1` — "What is your favorite thing to play with?"
-  2. `toddler-2` — "What word do you say all the time?"
-  3. `toddler-3` — "What food do you ask for again and again?"
-  4. `toddler-4` — "Who do you run to first in the morning?"
-  5. `toddler-5` — "What makes you laugh the hardest?"
-
-- **Band `little-kid` (minAge 3, maxAge 4):**
-  1. `little-kid-1` — "What do you want to be when you grow up?"
-  2. `little-kid-2` — "What is your favorite game right now?"
-  3. `little-kid-3` — "Who is your best friend, and what do you do together?"
-  4. `little-kid-4` — "What is the best food in the whole world?"
-  5. `little-kid-5` — "What makes you feel brave?"
-
-- **Band `early-school` (minAge 5, maxAge 7):**
-  1. `early-school-1` — "What did you learn this year that you are proud of?"
-  2. `early-school-2` — "What do you love about your friends?"
-  3. `early-school-3` — "What is the funniest thing that happened this year?"
-  4. `early-school-4` — "If you could go anywhere, where would you go?"
-  5. `early-school-5` — "What are you a little scared of, and what helps?"
-
-- **Band `middle-childhood` (minAge 8, maxAge 10):**
-  1. `middle-childhood-1` — "What are you really good at right now?"
-  2. `middle-childhood-2` — "What is something you changed your mind about this year?"
-  3. `middle-childhood-3` — "What do you and your friends laugh about?"
-  4. `middle-childhood-4` — "What is a dream you have for next year?"
-  5. `middle-childhood-5` — "When were you the happiest this year?"
-
-- **Band `tween` (minAge 11, maxAge 13):**
-  1. `tween-1` — "What matters most to you right now?"
-  2. `tween-2` — "What is something grown-ups get wrong about your age?"
-  3. `tween-3` — "What are you most proud of this year?"
-  4. `tween-4` — "Who do you look up to, and why?"
-  5. `tween-5` — "What do you want more time for?"
-
-- **Band `teen` (minAge 14, maxAge 200):** covers the teens and clamps every
-  older age.
-  1. `teen-1` — "What are you figuring out about who you are?"
-  2. `teen-2` — "What do you want your future self to remember about this year?"
-  3. `teen-3` — "What is a belief you hold strongly right now?"
-  4. `teen-4` — "What are you excited about after this year?"
-  5. `teen-5` — "What do you wish I understood better?"
-
-The dash characters used above in this document are Markdown list punctuation and
-`—` separators for the reviewer's convenience. The strings that ship are only the
-quoted questions; none of them contains a dash character. The implementer stores
-exactly the quoted text.
-
-### Fold helpers (`src/entries.ts`)
-
-Add a `foldInterview`, mirroring `foldDraft`, and harden `foldSealed`.
-
-- **`InterviewDraft` type:**
-  ```ts
-  export type InterviewDraft = {
-    title: string;
-    childAgeYears: number;
-    answers: InterviewAnswer[];
-  };
-  ```
-- **`foldInterview(vault, draft, editingId, newId, createdAt)`** — pure, same
-  contract as `foldDraft`. Editing maps in place by id, preserving `createdAt`
-  and every other entry; a new interview is prepended. The entry is:
-  ```ts
-  {
-    id, type: "interview", createdAt,
-    occasion: "", title: draft.title, body: "", photos: [],
-    childAgeYears: draft.childAgeYears, answers: draft.answers,
-  }
-  ```
-  When editing, keep the existing `createdAt` and `childAgeYears` (do not
-  recompute the age; the recorded age is a fact of that year), and replace
-  `title`/`answers` from the draft.
-- **`foldSealed` (harden — trust-critical).** Today it spreads `...e` then blanks
-  the letter fields, which would leave an interview's `answers` and
-  `childAgeYears` in the sealed entry as readable plaintext. Fix it so no
-  plaintext survives, while still preserving `id`, `createdAt`, `type`, and any
-  unknown future fields:
-  ```ts
-  const { answers, childAgeYears, ...rest } = e;
-  return {
-    ...rest,
-    occasion: "", title: "", body: "", photos: [],
-    sealed,
-  };
-  ```
-  Apply the same destructuring drop in both the edit-in-place branch and the
-  new-entry branch. For a letter (`e` has no `answers`/`childAgeYears`) this is a
-  no-op, so the existing `foldSealed` tests still pass unchanged.
-
-### Seal payload (`src/seal.ts`)
-
-Additive. `seal()` and `unsealWithWords()` only JSON-serialize/parse the payload,
-so optional fields flow through with no crypto change.
-
-```ts
-export type SealedPayload = {
-  occasion: string;
-  title: string;
-  body: string;
-  photos: Photo[];
-  childAgeYears?: number;      // present when the sealed entry was an interview
-  answers?: InterviewAnswer[]; // present when the sealed entry was an interview
+// One short imperative sentence per step. Ships verbatim; copy-swept.
+export const WALK_COPY: Record<WalkStep, string> = {
+  write: "Write your first letter.",
+  save: "Save it to your own file.",
+  backup: "Keep this saved copy as the one you reopen.",
+  seal: "Seal a letter to lock it.",
 };
+
+// True only for a brand-new parent: no first-run success recorded and no
+// content yet. This is the negation of the planner's "returning parent (a vault
+// with content or firstRunDone) never sees it." Pure, so it is unit-testable and
+// is the single source of truth for whether the walk starts.
+export function firstRunPending(vault: Vault): boolean {
+  return !vault.firstRunDone && vault.entries.length === 0;
+}
 ```
 
-No other change in `seal.ts`. Sealing an interview builds a payload with
-`occasion: ""`, `body: ""`, `photos: []`, the interview `title`, and the
-`childAgeYears`/`answers`. Unsealing returns them for display only.
+- `firstRunPending` is used ONCE, at App mount, to seed the session's
+  `walkActive` state. It is deliberately not re-read after saves flip
+  `firstRunDone`, so the parent is not yanked out of the walk mid-session the
+  instant they complete their first save (they still get the backup and seal
+  steps). See App controller below.
+- Do not add a "next step" helper that reaches into UI concerns here; step
+  transitions live in the App controller as small, explicit handlers, because
+  each transition is triggered by a different real event.
+
+### Coach strip (`src/ui/Walkthrough.tsx`, new)
+
+A pure function of its props. It renders the current step and nothing else.
+
+Props:
+
+```ts
+{
+  step: WalkStep;              // the current step
+  stepNumber: number;          // 1-based, for the indicator
+  totalSteps: number;          // WALK_STEPS.length
+  canAdvance: boolean;         // true only on the manual "backup" step
+  onAdvance: () => void;       // used only by the backup step's "Got it"
+  onSkip: () => void;
+}
+```
+
+Structure and behavior:
+
+- A single fixed, non-modal region pinned to the bottom of the viewport (so it is
+  reachable on a phone without covering the primary action, which sits in the
+  page flow above it). It has a solid background, a top border, and a comfortable
+  tap area. It must not use `role="dialog"`/`aria-modal` and must not trap focus.
+- Inside: a quiet step indicator ("Step 2 of 4"), the current step's sentence from
+  `WALK_COPY[step]` in an `aria-live="polite"` line so a step change is announced,
+  a Skip button (`aria-label="Skip the walkthrough"`), and, only when
+  `canAdvance` is true (the backup step), a single "Got it" button that calls
+  `onAdvance`.
+- The strip never renders the real controls. It points at them: the App highlights
+  the on-screen control for the current step (see below). The strip carries the
+  `no-print` class so it is hidden from the printed book and key sheet.
+- Keep it to one line of guidance plus the two controls. No paragraph, no list of
+  all steps, no illustrations.
+
+### Highlighting the current control (`src/ui/Home.tsx`, `src/ui/Editor.tsx`)
+
+Thread one optional prop through the two screens that own the walk's target
+controls, so the App can point the parent at the right button without the strip
+covering it.
+
+- **`Home`** gains an optional `highlightWrite?: boolean` prop. When true, add a
+  `walk-highlight` class to the archive's primary "Write a letter" button (both
+  the empty-state button and the non-empty archive-actions button, whichever is
+  rendered). No other change to Home.
+- **`Editor`** gains an optional `highlight?: "save" | "backup" | "seal" | null`
+  prop. When `"save"`, add `walk-highlight` to the Save button; when `"seal"`, add
+  it to the "Seal this letter" button; when `"backup"`, add it to the save
+  confirmation readout container (the `.save-status` region) so the parent's eye
+  lands on the "Saved. Your file is up to date." line the backup step is talking
+  about. When `null`/absent, nothing is highlighted.
+- The highlight is a visible outline/ring drawn in CSS (see Styles). It changes
+  appearance only; it never disables, moves, or wraps the control.
+
+Do not restructure these components. The prop is read only to toggle one class.
 
 ### App controller (`src/ui/App.tsx`)
 
-Extend the existing controller; keep its save, seal, unseal, and stale
-orchestration intact and reuse it.
+Extend the existing controller. Keep its save, seal, unseal, interview, and stale
+orchestration intact and reuse it. The walk is layered on; it changes no existing
+flow except to persist `firstRunDone` and to advance its own step.
 
-- Add `"interview"` to the `Route` union.
-- Add interview draft state (kept separate from the letter draft so the two flows
-  never interfere): the active interview's `title`, `childAgeYears`, the working
-  `answers` (an array the view edits by `promptId`), an `interviewEditingId`, and
-  the capture-step fields `childName` and `birthDate` plus a `needsBirthDate`
-  flag derived from `vault.child?.birthDate`.
-- **`openInterview()`** — start a new interview. If `vault.child?.birthDate` is
-  missing/unparseable, enter the capture step (`needsBirthDate = true`).
-  Otherwise compute `age = ageInYears(birthDate, now)`, seed `answers` from
-  `promptsForAge(age).prompts` (each `{promptId, promptText, answerText: ""}`),
-  set `title = interviewTitle(age)`, `childAgeYears = age`, `interviewEditingId =
-  null`, and `setRoute("interview")`.
-- **Capture-step continue** — validate the entered birth date (a real, non-future
-  date). On success, hold `childName`/`birthDate` in state, compute the age from
-  the entered date, seed the prompts as above, clear `needsBirthDate`, and show
-  the prompts. The date is written to `vault.child` only on save.
-- **`openInterviewEntry(id)`** — reached from the archive for an unsealed
-  interview. Load `title`, `childAgeYears`, and `answers` from the entry into
-  state (verbatim, so reopening restores them), set `interviewEditingId = id`,
-  and `setRoute("interview")`.
-- **`openEntry(id)`** — branch: sealed → unseal (unchanged); unsealed interview →
-  `openInterviewEntry(id)`; unsealed letter → editor (unchanged).
-- **`saveInterview()`** — build the next vault and save through the existing
-  controller so stale-copy detection, the download ritual, and the "Saved"
-  readout all apply:
-  ```ts
-  const childNext = needsBirthDate || childChanged
-    ? { name: childName.trim(), birthDate }   // birthDate from the capture step
-    : vault.child;
-  const base = { ...vault, child: childNext };
-  const { next, entryId } = foldInterview(base, draft, interviewEditingId, randomId(), now.toISOString());
-  const result = await controller.save(next);
-  applyResult(result, next, entryId, null);
-  ```
-  Reuse `applyResult` (the `seal: null` branch) so a successful save shows
-  "Saved", a stale disk prompts the existing dialog, and a download save shows the
-  backup ritual. `applyResult` already sets `editingId`; also set
-  `interviewEditingId = entryId` on success so a follow-up save edits in place.
-- **Sealing an interview** — reuse the existing seal dialog and key-sheet flow.
-  Add a seal path that builds the interview payload (`{occasion: "", title,
-  body: "", photos: [], childAgeYears, answers}`), calls `seal(...)`, folds with
-  `foldSealed` on the interview's vault (including any captured child), saves, and
-  routes through `applyResult` with the seal context, exactly like `runSeal`.
-  Factor the shared seal-then-save body so letters and interviews share one code
-  path with different payloads; do not duplicate the trust-critical logic. The
-  stale-replace path (`replaceDiskCopy`) must carry the correct editing id for an
-  interview seal too.
-- **Nudge** — compute `const nudge = birthdayNudge(vault, now)` and pass it (plus
-  an in-memory `nudgeDismissed` flag and `onStartInterview`/`onDismissNudge`) to
-  `Home`. Dismiss sets `nudgeDismissed = true` for the session. Recording this
-  year's interview updates `vault`, after which `birthdayNudge` returns `null`
-  structurally, so the nudge does not reappear.
-- Render `InterviewView` when `route === "interview"`, and pass
-  `onOpenInterview`/`onOpenEntry`/the nudge props to `Home`.
+Add session state:
 
-### Interview view (`src/ui/InterviewView.tsx`, new)
+```ts
+const [walkActive, setWalkActive] = useState<boolean>(firstRunPending(initialVault));
+const [walkStep, setWalkStep] = useState<WalkStep>("write");
+```
 
-A component with two surfaces controlled by props: the capture step (only when the
-birth date is unknown) and the prompt form.
+- `walkActive` is seeded from `firstRunPending(initialVault)` at mount and is
+  session-only. It is never recomputed from the vault after saves; only Skip and
+  completing the seal turn it off.
+- **Persist `firstRunDone` on the first success.** Before every
+  `controller.save(next)` call in `runSave`, `saveInterview`, and `runSeal`,
+  ensure the outgoing vault carries the flag: if `!next.firstRunDone`, set
+  `next = { ...next, firstRunDone: true }`. This is idempotent (already-true
+  vaults are unchanged) and applies on all three save paths, so a first letter
+  save, a first interview save, or a first seal all record first-run as done in
+  the file that gets written. Because `applyResult` sets `vault = result.vault`
+  only on a saved outcome, the in-memory vault also gains the flag on success and
+  keeps `false` on cancel/error (so a retried save still sets it). The
+  stale-replace path (`replaceDiskCopy`) already saves the `pending` vault, which
+  was built with the flag, so it is covered.
+- **Advance the walk on real events.** Add small, explicit transitions:
+  - In `openWrite()`: if `walkActive && walkStep === "write"`, set
+    `walkStep = "save"`. (The parent acted on "Write a letter".)
+  - In `applyResult`, in the `status === "saved"` branch for a non-seal save
+    (`seal === null`): if `walkActive && walkStep === "save"`, set
+    `walkStep = "backup"`. (The first save just succeeded.)
+  - Backup acknowledgement: advance `walkStep` from `"backup"` to `"seal"` when
+    the parent presses the strip's "Got it" (`onAdvance`) on the Chromium path,
+    or when they press "Got it" on the existing `BackupRitual` dialog (download
+    path); wire both to the same `advanceFromBackup()` that sets
+    `walkStep = "seal"` when `walkActive && walkStep === "backup"`. (Do not change
+    BackupRitual's own behavior; just also advance the walk when it closes.)
+  - In `applyResult`, in the `status === "saved"` branch for a seal
+    (`seal !== null`, the branch that shows the key sheet): if `walkActive`, set
+    `walkActive = false`. (The first seal completed; the walk is done and the key
+    sheet is the payoff.)
+- **Skip.** `onSkip` sets `walkActive = false`. Nothing is persisted.
+- **Compute the render inputs.** Derive the current highlight target and the
+  strip props from `walkActive`/`walkStep`/`route`:
+  - Show the strip only when `walkActive` is true.
+  - `highlightWrite` for `Home` is `walkActive && walkStep === "write" && route === "home"`.
+  - `Editor`'s `highlight` is: `"save"` when `walkStep === "save"`, `"backup"`
+    when `walkStep === "backup"`, `"seal"` when `walkStep === "seal"`, else
+    `null`, and only while `walkActive && route === "editor"`.
+  - `canAdvance` (the strip's "Got it") is `walkStep === "backup"`.
+- **Do not show the strip over a blocking dialog it would fight.** While
+  `SealDialog`, `KeySheet`, or `StaleCopyDialog` is open, hide the coach strip
+  (render it only when none of those is open). The `BackupRitual` dialog is the
+  one exception: on the backup step the parent may advance by closing that dialog,
+  so either surface may satisfy the acknowledgement. Keep this simple: gate the
+  strip's render on `!sealDialog && !keySheet && !stale`.
 
-- **Capture step** — one plain heading, one line explaining that the birth date
-  chooses the right questions, a labelled `<input type="date">` for the birth date
-  (required), a labelled optional name input, a primary "Continue" button, and a
-  subordinate "Back to letters". No date entered yet disables "Continue".
-- **Prompt form** — a `<main>` with an `<h1>` (the derived title, e.g.
-  "Interview at age 3"), then for each answer in state a labelled block: the
-  prompt text as the field label and a `<textarea>` bound to that prompt's
-  `answerText`. Below the prompts: a primary "Save this interview" (reuse
-  `SaveControls` for the phase/hint/"Saved" feedback and the "Back to letters"
-  return) and a subordinate seal zone mirroring the editor's "Seal this letter"
-  (labelled "Seal this interview", disabled when sealing is unavailable or a save
-  is in flight, with the same `sealingReady` note).
-- The view is a pure function of its props. It never writes the vault directly;
-  it calls the App handlers.
+No change to `Route`, to the interview handlers beyond the `firstRunDone` line in
+`saveInterview`, or to the unseal flow.
 
-Answers are stored exactly as typed. Do not trim, reflow, or transform answer
-text (verbatim is an acceptance criterion). An empty answer is allowed and saves
-as `""`.
+### Styles (`src/styles.css`)
 
-### Archive (`src/ui/Home.tsx`)
+Add, additively:
 
-- Add an `onOpenInterview: () => void` prop and a `nudge` surface.
-- **Interview entry point.** In the non-empty archive actions, add a subordinate
-  "Record an interview" button (`btn btn-secondary btn-block`) next to "Open the
-  book". The primary "Write a letter" stays the one obvious action. The empty
-  archive branch is unchanged (there is no birth date and nothing to interview
-  against yet).
-- **Interview rows.** In the entries list, an unsealed interview entry renders as
-  a row showing its title and a subtitle line that marks it an interview (for
-  example the derived title already reads "Interview at age 3"; add a short
-  `entry-occasion`-style label such as "Yearly interview" so it is unmistakable),
-  plus its date. It has no thumbnail. Clicking it calls `onOpenEntry(id)`, which
-  routes to the interview flow in edit mode. Sealed interview entries render
-  through the existing sealed placeholder unchanged (lock, keyHint, date).
-- **The nudge.** When `nudge` is present and not dismissed, render one calm line
-  above the entries: a short heading, one plain sentence, a primary-styled
-  "Record this year's interview" button (calls `onOpenInterview`), and a quiet
-  "Not now" dismiss (calls `onDismissNudge`). It is an inline region, never a
-  modal, and never blocks the archive. Keep the integrity readout and existing
-  ordering intact.
+- **`.walk`** — the coach strip: `position: fixed; left/right: 0; bottom: 0;`
+  full width, centered inner content constrained to `--maxw`, solid
+  `--paper-raised` background, a top `1px solid var(--line)` border, comfortable
+  padding, and a `z-index` below the dialog backdrop's `10` (for example `5`) so
+  any real dialog still sits above it. Lay out the indicator, the step line, and
+  the buttons so they wrap gracefully at 390px with ~44px targets and no
+  horizontal scroll. Reserve bottom space so the strip does not hide the page's
+  own primary action (for example add bottom padding to `.page` while the walk is
+  active, or ensure the strip's height is modest and the page already has
+  `padding-bottom: 4rem`).
+- **`.walk-step`** — the indicator, quiet (`--ink-soft`, small).
+- **`.walk-line`** — the imperative sentence, `--ink`, readable weight.
+- **`.walk-actions`** — the Skip and optional "Got it", using the existing `.btn`
+  vocabulary (`btn-secondary` for Skip, `btn-primary` for "Got it").
+- **`.walk-highlight`** — the control ring: a visible `outline`/`box-shadow` in
+  `--accent` (or `--focus`) with offset, high enough contrast to read as
+  "look here", applied on top of the control's own styles without changing its
+  size or position. Keep `:focus-visible` working (do not override it).
+- Under `@media print`, ensure `.walk` is not painted (it carries `no-print`, and
+  the existing `body *` visibility rule already hides everything but `.book`/
+  `.key-sheet`; add `.walk { display: none; }` inside the print block for
+  belt-and-suspenders).
+- Respect `@media (prefers-reduced-motion: reduce)`: if the highlight or strip
+  uses any transition/animation, disable it there (mirror the existing
+  `.boot-skeleton` treatment).
 
-### Unseal view (`src/ui/UnsealView.tsx`)
-
-When the revealed payload carries `answers` (a sealed interview), render them:
-the title, the date, and each `promptText` with its `answerText`, using the same
-read-only, in-memory-only pattern as a revealed letter. A revealed letter (no
-`answers`) renders exactly as today.
-
-### Book (`src/ui/BookView.tsx`)
-
-`bookEntries` already returns unsealed interviews (it filters on sealed only), so
-they appear in book order with no selector change. In the entries map, branch on
-`entry.type === "interview"`: render an `<article class="book-entry
-book-interview">` with the `<h2>` title, the `Written <date>` line, and each
-answer as a question (`promptText`) followed by its answer (`answerText`) in a
-semantic structure. A letter renders exactly as today. Do not render photos or
-body for an interview (it has none).
+Do not restyle existing surfaces.
 
 ### Sample demo (`src/sample.ts`)
 
-Add one inert, unsealed interview entry to `sampleVault()` so the staging demo
-shows the ritual in the archive and the book. Use the existing sample child
-(`Mira`, `birthDate: "2026-01-08"`). Give it a fixed `createdAt`, a
-`childAgeYears` consistent with a plausible interview, a title from
-`interviewTitle`, and two or three short, swept answers keyed to real prompt ids
-from the matching band. Keep it tiny and clearly a sample. If any existing test
-asserts the exact demo entry count, update it in the same run.
-
-### Styles and print CSS (`src/styles.css`)
-
-Add screen styles for: the interview capture step and prompt form (reuse the
-`.field`/`.input`/`.textarea`/`.btn` vocabulary already in the file), the nudge
-banner (a calm inset region, clearly subordinate), the archive interview label,
-and the book interview answers (question emphasized, answer in the reading
-measure). Extend the existing `@media print` block only additively: the book
-interview answers must print cleanly with the same break discipline as letters
-(keep a question with its answer via `break-after: avoid` on the question;
-`orphans`/`widows` on answer text). The nudge, the interview toolbar, and all app
-chrome carry `no-print` / are already hidden by the existing `body *` print rule;
-verify the book still prints only `.book`. Do not restyle existing surfaces.
+Set `firstRunDone: true` on the object returned by `sampleVault()`. The demo
+already carries entries, so the walk would not show regardless, but making the
+flag true states the intent plainly and guards the "reviewer is never trapped"
+criterion directly. No other change to the sample.
 
 ### Files to touch (summary)
 
 ```
-src/interview.ts        NEW: prompt pack, ageInYears, promptsForAge, interviewTitle, birthdayNudge
-src/ui/InterviewView.tsx NEW: capture step + prompt form + seal zone
-src/vault.ts            SCHEMA_VERSION 3->4, migrateV3toV4, InterviewAnswer, Entry.type/childAgeYears/answers, validateEntry
-src/entries.ts          add foldInterview + InterviewDraft; harden foldSealed to strip interview plaintext
-src/seal.ts             SealedPayload gains optional childAgeYears/answers
-src/template.ts         add childAgeYears/answers to orderEntry known order
-src/ui/App.tsx          "interview" route, interview state + handlers, seal path, nudge, openEntry branch
-src/ui/Home.tsx         "Record an interview" action, interview rows, birthday nudge banner
-src/ui/UnsealView.tsx   render revealed interview answers
-src/ui/BookView.tsx     render interview entries alongside letters
-src/sample.ts           one inert sample interview for the demo
-src/styles.css          interview view, nudge, archive label, book answers + additive print rules
-README.md               module list entries; one "What makes it different" line
-tests/unit/...          interview.ts (age/bands/title/nudge/pack-sweep), entries (foldInterview, foldSealed strip), vault (v4 migrate/parse/round-trip), seal (interview round-trip)
-tests/e2e/interview.spec.ts  NEW: age-appropriate prompts, verbatim save+reopen, birth-date capture, archive+book render, seal (no leak) + unseal, nudge show/dismiss/opens, mobile
+src/walkthrough.ts       NEW: WalkStep, WALK_STEPS, WALK_COPY, firstRunPending (pure)
+src/ui/Walkthrough.tsx   NEW: the non-modal coach strip
+src/ui/App.tsx           walkActive/walkStep state, step transitions, persist firstRunDone,
+                         render the strip and pass highlight props
+src/ui/Home.tsx          optional highlightWrite prop -> walk-highlight on "Write a letter"
+src/ui/Editor.tsx        optional highlight prop -> walk-highlight on Save / save-status / Seal
+src/sample.ts            firstRunDone: true (explicit, self-documenting)
+src/styles.css           .walk strip, .walk-highlight ring, print + reduced-motion rules
+README.md                module list entries; one "What makes it different" line
+tests/unit/walkthrough.test.ts  NEW: firstRunPending truth table + copy sweep
+tests/e2e/walkthrough.spec.ts   NEW: full walk, skip, persistence, returning parent, demo, mobile
 ```
 
-Do NOT touch `src/save/`, `src/photos.ts`, `src/mnemonic.ts`, `src/qr.ts`,
+Do NOT touch `src/vault.ts` (the field already exists), `src/template.ts` (the
+field already serializes), `src/save/`, `src/seal.ts`, `src/entries.ts`,
+`src/interview.ts`, `src/photos.ts`, `src/qr.ts`, `src/mnemonic.ts`,
 `index.html`, the CSP, `scripts/`, the Dockerfile, or the staging compose file.
 No new dependency.
 
@@ -589,244 +405,202 @@ No new dependency.
 
 ## Example copy (ships verbatim downstream; already copy-swept)
 
-- Archive interview action: `Record an interview`
-- Archive interview row label: `Yearly interview`
-- Interview title, first year: `Interview in the first year`
-- Interview title, age n: `Interview at age <n>` (for example `Interview at age 3`)
-- Interview save button: `Save this interview`
-- Interview seal button: `Seal this interview`
-- Interview back button: `Back to letters`
-- Capture heading: `First, your child's birth date.`
-- Capture line: `The birth date picks the right questions for your child's age.`
-- Capture name label: `Child's name`
-- Capture birth-date label: `Birth date`
-- Capture continue button: `Continue`
-- Nudge heading: `Time for this year's interview.`
-- Nudge line: `A few questions with your child, kept next to this year's letters.`
-- Nudge action: `Record this year's interview`
-- Nudge dismiss: `Not now`
-- The prompt pack: exactly the quoted questions in "The prompt pack" above.
+- Write step line: `Write your first letter.`
+- Save step line: `Save it to your own file.`
+- Backup step line: `Keep this saved copy as the one you reopen.`
+- Seal step line: `Seal a letter to lock it.`
+- Step indicator: `Step 1 of 4` (and `2`, `3`, `4`)
+- Skip button: `Skip` (accessible name `Skip the walkthrough`)
+- Backup advance button: `Got it`
+- Region label (accessible name for the strip): `Getting started`
 
-Copy sweep for every string above and every prompt: no `—` or `–`; none of the
-banned vocabulary ("seamlessly", "effortlessly", "unlock", "elevate", "empower",
-"leverage", "robust", "dive in", and kin); positive, direct phrasing; no negative
+Copy sweep for every string above: no `—` or `–`; none of the banned vocabulary
+("seamlessly", "effortlessly", "unlock", "elevate", "empower", "leverage",
+"robust", "dive in", and kin); positive, direct phrasing; no negative
 empty-state phrasing ("You have no...", "No ... yet", "Nothing ... here", "Unable
-to", "Something went wrong"). The implementer repeats this sweep over every string
-they add, including any README copy and the sample interview answers.
+to", "Something went wrong"). The implementer repeats this sweep over every
+string they add, including the README line.
 
 ---
 
 ## Ordered task list (each with acceptance criteria)
 
-Brackets map to the planner's acceptance criteria: [AC1] age-appropriate prompt
-selection, bands infancy through teens; [AC2] verbatim answers saved with the
-child's age, reopening restores them; [AC3] interviews in the archive and book,
-sealable like any entry; [AC4] prompt-pack copy passes the sweep; [AC5] one calm,
-dismissible birthday nudge that never nags.
+Brackets map to the planner's acceptance criteria: [AC1] 2 to 4 steps on first
+open, anchored to real controls, each one short imperative sentence; [AC2]
+skippable at every step and permanently dismissed on first save/seal
+(`firstRunDone` set); [AC3] a returning parent (content or `firstRunDone`) never
+sees it; [AC4] points at controls, never an essay (§4 and §7 met together); [AC5]
+the seeded demo does not trap a reviewer; the differentiator is reachable within
+a minute.
 
-1. **Prompt pack, age, title, and nudge helpers.** [AC1, AC4, AC5]
-   - `src/interview.ts` exports `AGE_BANDS` covering ages 0 through the teens in
-     contiguous bands, `ageInYears`, `promptsForAge` (clamped so every
-     non-negative age resolves to a non-empty band), `interviewTitle`, and
-     `birthdayNudge`. All pure. Unit-tested.
-   - The infancy band and the teen band return different prompt sets (AC1).
+1. **Walkthrough model.** [AC1, AC3, AC4]
+   - `src/walkthrough.ts` exports `WalkStep`, `WALK_STEPS` (the four ordered
+     steps), `WALK_COPY` (one short imperative sentence per step), and
+     `firstRunPending(vault)` returning true only when `!firstRunDone` and there
+     are no entries. Pure, unit-tested.
 
-2. **Model, migration, serialization.** [AC2, AC3]
-   - `SCHEMA_VERSION` is 4; `migrateV3toV4` raises the version without touching
-     entries; `validateEntry` accepts `"interview"`, validates `answers` and
-     `childAgeYears` when present, and rejects malformed ones. `orderEntry`
-     serializes the new fields deterministically. A v4 file opened by a v3 shell
-     still hits the newer-version error state.
+2. **Coach strip component.** [AC1, AC4]
+   - `src/ui/Walkthrough.tsx` renders the current step's single sentence, a step
+     indicator, an always-present Skip, and a "Got it" only on the backup step. It
+     is non-modal, not a focus trap, `aria-live="polite"` on the step line, and
+     carries `no-print`. It never renders or covers the real controls.
 
-3. **Fold helpers.** [AC2, AC3]
-   - `foldInterview` prepends a new interview entry and edits one in place by id
-     (preserving `createdAt` and `childAgeYears`), leaving other entries
-     untouched.
-   - `foldSealed` strips `answers` and `childAgeYears` (and the letter content
-     fields) so a sealed interview carries no readable plaintext; existing letter
-     seal behavior is unchanged.
+3. **Control highlighting.** [AC1, AC4]
+   - `Home` highlights "Write a letter" when `highlightWrite` is set; `Editor`
+     highlights the Save button, the save confirmation, or the "Seal this letter"
+     button per its `highlight` prop. The highlight is a visible ring that does
+     not change the control's size, position, or behavior.
 
-4. **Interview flow.** [AC1, AC2]
-   - `InterviewView` shows the capture step only when the birth date is unknown,
-     then the age-appropriate prompt form. The parent records answers verbatim and
-     saves through the existing controller; the entry stores `childAgeYears` and
-     every prompt with its verbatim answer. Reopening an interview restores every
-     answer exactly as typed. Entering a birth date in the capture step persists
-     it to `vault.child` on the same save.
+4. **App wiring and progression.** [AC1, AC2, AC3]
+   - `walkActive` is seeded from `firstRunPending(initialVault)` at mount.
+   - Steps advance only on real events: opening the editor (write to save), a
+     successful non-seal save (save to backup), acknowledging the backup guidance
+     (backup to seal), and a successful seal (walk ends).
+   - Skip hides the walk for the session and persists nothing.
+   - The strip is hidden while a seal dialog, key sheet, or stale-copy dialog is
+     open.
 
-5. **Archive, book, and unseal rendering.** [AC3]
-   - The archive lists unsealed interviews, labelled as interviews, opening back
-     into the edit flow; sealed interviews show the existing locked placeholder.
-   - The book typesets each unsealed interview (title, date, each prompt and
-     answer) alongside letters, in book order.
-   - Unsealing a sealed interview reveals its answers read-only, in memory only.
+5. **Persist `firstRunDone`.** [AC2, AC3]
+   - The first successful save or seal writes `firstRunDone: true` into the saved
+     vault on all three save paths (letter, interview, seal), so the saved file
+     records first-run as done. Reopening that file starts with `walkActive`
+     false.
 
-6. **Sealing an interview.** [AC3, differentiator]
-   - Sealing an interview runs through the existing seal dialog and key-sheet
-     flow, encrypts the answers and age, and removes them from the saved file so
-     the vault JSON holds no readable answer text or age for that entry. Unsealing
-     with the 24 words (and, separately, the QR) restores the answers.
-
-7. **Birthday nudge.** [AC5]
-   - Around the birthday (within the fixed window, birth date known, this year's
-     interview not yet recorded) the archive shows one calm, dismissible line whose
-     action opens the interview. It is hidden outside the window, hidden once this
-     year's interview exists, and never a blocking modal. Dismissing hides it for
-     the session.
-
-8. **Demo, mobile, accessibility, copy sweep, docs.** [AC4, quality §2/§4/§6/§8/§9]
-   - `sampleVault()` carries one inert unsealed sample interview so staging shows
-     the ritual within a minute.
-   - The interview flow, capture step, nudge, archive rows, and book pages are
-     fully usable at 390px with ~44px targets and no horizontal scroll.
-   - Semantic structure and labels as described; keyboard reaches every control;
-     visible focus.
-   - Mechanical copy sweep over every new/changed string and the prompt pack
-     passes. README module list and the one differentiator line are accurate;
-     commands unchanged.
+6. **Demo, docs, mobile, accessibility, copy sweep.** [AC4, AC5, quality §2/§6/§8/§9]
+   - `sampleVault()` sets `firstRunDone: true`; with `?demo=1` no walkthrough
+     shows and the sealed sample entry is reachable within a minute.
+   - The strip is fully usable at 390px (no horizontal scroll, ~44px targets),
+     keyboard reachable with visible focus, and does not trap focus or block the
+     highlighted control.
+   - README module list and the one differentiator line are accurate; commands
+     unchanged. Mechanical copy sweep over every new string passes.
 
 ---
 
 ## Test plan (automated tests prove each criterion)
 
-**Unit / integration (Vitest):**
+**Unit (Vitest) — `tests/unit/walkthrough.test.ts`:**
 
-- **`ageInYears`:** whole years for a birthday already passed this year and one
-  not yet reached (boundary), Feb 29 birth date in a non-leap `now`, and `null`
-  for an unparseable or future date. [AC1]
-- **`promptsForAge`:** returns the correct band across every band boundary;
-  clamps age 0 to the first-year band and a large age (e.g. 40) to the teen band;
-  the first-year band and the teen band have different prompt sets. [AC1]
-- **`interviewTitle`:** `"Interview in the first year"` at 0, `"Interview at age
-  5"` at 5. [AC1]
-- **Prompt-pack sweep (mechanical, automated):** import `AGE_BANDS`, flatten all
-  prompt `text` values, and assert none contains `"—"` or `"–"` and none matches
-  the banned-vocabulary list (case-insensitive). This makes AC4 a standing test,
-  not a one-time check. [AC4]
-- **`birthdayNudge`:** returns `null` with no birth date; returns `{age}` when
-  `now` is inside the window and no interview for that age exists; returns `null`
-  when an unsealed interview with that `childAgeYears` already exists; returns
-  `null` when `now` is well outside the window; Feb 29 birthday resolves on Feb 28
-  in a non-leap year. All with explicit `now`. [AC5]
-- **`foldInterview`:** a new interview is prepended with `type: "interview"`,
-  `childAgeYears`, `answers`, and empty letter fields; editing maps in place by id,
-  preserves `createdAt` and `childAgeYears`, and leaves other entries and their
-  photos byte-identical. [AC2]
-- **`foldSealed` on an interview:** the resulting sealed entry has no `answers`
-  and no `childAgeYears` and empty letter fields, and carries the sealed blob;
-  a sealed letter is unchanged from today's behavior. [AC3, differentiator]
-- **`vault` v4:** `migrateV3toV4` bumps the version and preserves entries; parsing
-  a vault with an interview entry validates and preserves `answers`/`childAgeYears`;
-  a malformed `answers` item throws `VaultParseError`; a serialize-then-parse
-  round-trip of an interview entry preserves every field (proves `orderEntry`
-  keeps them). Update any test that used `4` as the "newer version" sentinel to
-  `5`. [AC2, AC3]
-- **`seal` interview round-trip:** `seal({occasion:"", title, body:"", photos:[],
-  childAgeYears, answers}, hint, iso)` then `unsealWithWords(sealed, words)`
-  returns the same `answers` and `childAgeYears`. [AC3]
+- **`firstRunPending` truth table:** true for `emptyVault()`; false when
+  `firstRunDone` is true (even with no entries); false when there is at least one
+  entry (even with `firstRunDone` false); false for a vault that has both. [AC3]
+- **Step model:** `WALK_STEPS` is exactly `["write","save","backup","seal"]` and
+  `WALK_COPY` has a non-empty one-sentence string for each. [AC1]
+- **Copy sweep (mechanical, automated):** flatten every value in `WALK_COPY` plus
+  the fixed strings ("Skip", "Got it", "Getting started", and the "Step N of 4"
+  template) and assert none contains `"—"` or `"–"`, none matches the
+  banned-vocabulary list (case-insensitive), and none matches the negative
+  empty-state patterns. This makes the sweep a standing test, not a one-time
+  check. [AC4, quality §8]
 
 **End-to-end (Playwright, real browser, loaded from `file://`, all engines) —
-`tests/e2e/interview.spec.ts`:**
+`tests/e2e/walkthrough.spec.ts`:** (use `MOCK_FSA` for the Chromium save path and
+`writeSeededArtifact`/`extractVaultJson` from `tests/e2e/helpers.ts`)
 
-- **Age-appropriate prompts:** seed a vault with a `child.birthDate` making the
-  child a specific age (for example age 3), open "Record an interview", and assert
-  the visible questions are the age-3 band's questions and not the infancy band's.
-  Seed a second vault at a teen age and assert its distinct questions appear.
-  [AC1]
-- **Verbatim save and reopen:** with a birth date known, record answers to two
-  prompts, save (mock FSA on Chromium), assert the "Saved" readout, go back, open
-  the interview from the archive, and assert both answers are restored exactly as
-  typed. Also assert the saved vault JSON (via `extractVaultJson`) holds an
-  interview entry with `childAgeYears` and the two `answers`. [AC2]
-- **Birth-date capture:** seed a vault with `child: null` and one letter, open
-  "Record an interview", assert the capture step appears, enter a birth date,
-  continue, assert the age-appropriate prompts appear, record and save, and assert
-  the saved vault JSON has `child.birthDate` set and the interview entry present.
-  [AC1, AC2]
-- **Archive and book render:** seed a vault with a letter and an unsealed
-  interview; assert the archive shows the interview labelled as an interview;
-  open the book and assert the interview's title, a prompt question, and its
-  answer all appear alongside the letter, in book order. [AC3]
-- **Seal an interview leaks nothing, then unseals:** record an interview with a
-  distinctive answer string, seal it through the dialog, capture the 24 words from
-  the key sheet, and assert (a) the archive now shows the sealed placeholder, and
-  (b) the saved vault JSON contains the sealed blob and does NOT contain the
-  distinctive answer string or the age. Then open the sealed entry, enter the 24
-  words, and assert the answer is revealed on screen. [AC3, differentiator]
-- **Birthday nudge shows, opens, and dismisses:** seed a vault whose
-  `child.birthDate` is set to today's month and day in a past year (computed at
-  test time from the runtime clock, since the app uses the real `now`), with no
-  interview yet. Assert the nudge line is visible; click its action and assert the
-  interview opens; reload, assert it shows again, click "Not now" and assert it is
-  gone for the session. Seed a second vault additionally carrying an interview for
-  the current age and assert the nudge is absent. [AC5]
-- **Mobile 390px:** at a 390px viewport, open the interview and the archive with
-  the nudge; assert no horizontal scroll (`scrollWidth <= clientWidth`) and that
-  the primary actions and the dismiss are tappable (~44px). [quality §2]
+- **First open shows the guided path anchored to real controls.** Open the built
+  artifact (empty starter vault). Assert the coach strip is visible showing step 1
+  of 4 and the "Write your first letter." line, that the "Write a letter" button
+  carries the highlight class, and that a Skip control is present. [AC1]
+- **The walk advances through the real core loop.** With `MOCK_FSA` installed,
+  click "Write a letter" and assert the strip advances to the save step and the
+  Save button is highlighted. Type a letter, press Save, and assert (a) the
+  "Saved" confirmation appears, (b) the strip advances to the backup step, and
+  (c) the saved vault JSON (`extractVaultJson(window.__tylDisk)`) has
+  `firstRunDone: true`. Press the backup "Got it" and assert the strip advances to
+  the seal step with the "Seal this letter" button highlighted. [AC1, AC2]
+- **Skippable at every step.** In a fresh open, click Skip on step 1 and assert
+  the strip is gone. In a second run, advance to the save step, click Skip, and
+  assert the strip is gone. (Skip is reachable and hides the walk at each step.)
+  [AC2]
+- **Permanent dismissal after first save.** After the save in the progression
+  test, take the saved HTML from `window.__tylDisk`, write it to a file with
+  `writeSeededArtifact` (or reuse the on-disk bytes), reopen it, and assert the
+  coach strip does not appear (the vault now has an entry and `firstRunDone`).
+  [AC2, AC3]
+- **A returning parent never sees it.** Seed an artifact whose vault has one
+  letter and `firstRunDone: false`; assert no strip (content suppresses it). Seed
+  another with no entries and `firstRunDone: true`; assert no strip (the flag
+  suppresses it). [AC3]
+- **The seeded demo is not trapped.** Open the artifact with `?demo=1`; assert no
+  coach strip appears and that a sealed entry (the demo's locked placeholder) is
+  visible and openable, so the differentiator is reachable immediately. [AC5]
+- **Not a focus trap; control stays usable.** On first open, assert the
+  highlighted "Write a letter" button is clickable and that keyboard focus can
+  move to it and to Skip (Tab reaches both; the strip does not trap focus). [AC4,
+  quality §6]
+- **Mobile 390px.** At a 390px viewport on first open, assert no horizontal
+  scroll (`scrollWidth <= clientWidth`), the coach strip is visible, and Skip is a
+  tappable ~44px target. Assert the page's primary "Write a letter" action is not
+  covered by the strip (it is reachable and clickable). [quality §2]
 
 **Copy sweep (mechanical, part of done):** grep every user-visible string added in
-this EPIC (the prompt pack, `InterviewView`, the nudge, the archive label, the
-sample answers, and any README copy) for the characters `—` and `–`, the banned
-vocabulary, and negative empty-state phrasing. Every hit in a shipped string is a
-defect to fix in the same run. The prompt-pack sweep is additionally locked by the
-unit test above. [AC4, quality §8]
+this EPIC (`WALK_COPY`, the strip's fixed labels, and the README line) for the
+characters `—` and `–`, the banned vocabulary, and negative empty-state phrasing.
+Every hit in a shipped string is a defect to fix in the same run. The unit test
+above locks the walkthrough strings permanently. [AC4, quality §8]
 
 ---
 
 ## Risks and notes for the implementer
 
-- **A sealed interview must never leak (top risk).** `foldSealed` currently
-  spreads the whole entry, which would carry an interview's `answers` and
-  `childAgeYears` into the sealed blob as plaintext. The destructuring-drop fix
-  above is mandatory, and the e2e "seal leaks nothing" test is the proof. Do not
-  ship the seal path without it. This is the differentiator line of the EPIC.
-- **Store `promptText` on the entry, not a lookup.** Render interviews from the
-  entry's own `answers` (which include `promptText`), never by re-reading the pack
-  by `promptId`. A future pack edit must not rewrite the questions a family
-  already answered.
-- **Age is a fact of the year, recorded once.** Compute `childAgeYears` when the
-  interview is first created and preserve it on every edit. Do not recompute it
-  from `now` when reopening an old interview.
-- **Verbatim means verbatim.** Do not trim, collapse whitespace, or reformat
-  answer text. Save exactly what was typed. Empty answers are allowed.
-- **The nudge never nags and never saves on dismiss.** Dismissal is in-memory for
-  the session only. Recording this year's interview is the real, permanent
-  dismissal, because `birthdayNudge` then returns `null`. Do not add a vault field
-  that must be persisted with a file write just to remember a dismissal.
-- **Birth-date capture is a precondition, not a settings screen.** Capture only
-  the birth date (required) and name (optional), only when the birth date is
-  missing, and only inside the interview flow. Do not grow it into a settings hub
-  or add any other child field. If a stakeholder wants a real Settings screen,
-  request it as a follow-up rather than building it here.
-- **Reuse the save and seal machinery.** Route interview saves and seals through
-  the existing `SaveController`, `applyResult`, stale-copy dialog, and key sheet.
-  Do not fork a second save path. The felt safety of saving comes from reusing the
-  exact ritual letters already use.
-- **No network, no LLM, no audio, no schema drift beyond v4.** The prompt pack is
-  static code; the interview renders and saves offline. Adding an LLM, a recorder,
-  a mailer, or a second migration is out of scope and, for the first three, a
-  Non-Goal. If a criterion appears to need one of these, block with a precise
-  question rather than building it.
+- **The walk must reach a real save (top value).** The point of this EPIC is to
+  carry a nervous parent through the two fear points. Do not build a walk that
+  only labels the write step and stops. The save step must lead to a real Save
+  press and the seal step to a real Seal, so the parent's first contact with both
+  scary actions happens inside the guide. This is the differentiator line.
+- **Never block or cover the control you point at.** The strip is non-modal, is
+  not a focus trap, and must not sit on top of the button it highlights. On a
+  phone the primary action stays reachable with the strip pinned at the bottom.
+  Reserve space so the strip does not hide the action. A guide the parent can get
+  stuck in is worse than no guide.
+- **`walkActive` is session state, seeded once.** Seed it from
+  `firstRunPending(initialVault)` at mount and do not recompute it after saves. If
+  you gate the strip directly on `firstRunPending(vault)` instead, the parent is
+  thrown out of the walk the instant their first save sets `firstRunDone`, before
+  they ever reach the backup and seal steps. Gate the strip on the session flag;
+  gate whether the session starts on the pure predicate.
+- **Persist `firstRunDone` on the save, not on Skip.** The flag is written into
+  the vault the parent actually saves, on all three save paths. Skip writes
+  nothing: the app never saves without a Save press, and inventing a background
+  write to remember a dismissal would break the trust model (no surprise writes).
+  A parent who skips an untouched starter file may see the walk again next open;
+  that is correct, because they have not had their first success.
+- **Do not touch the model or serialization.** `firstRunDone` already exists in
+  `Vault`, is defaulted in `emptyVault()` and `parseVault`, and is already in
+  `orderVault`'s known-key order. This EPIC only consumes it. No schema bump, no
+  migration.
+- **Reuse the existing save, seal, and backup surfaces.** Route everything through
+  the current `SaveController`, `applyResult`, `SealDialog`, `KeySheet`, and
+  `BackupRitual`. The felt safety of the first save and seal comes from them being
+  the exact same flows a returning parent uses. The walk points; it does not fork
+  a parallel path.
+- **No re-trigger, no wizard, no video.** These are Non-Goals. Do not add a way to
+  replay the walk, do not turn the strip into a multi-page takeover, and add no
+  media. If a stakeholder wants a help/replay affordance later, request it as a
+  follow-up rather than building it here.
+- **Print and reduced motion.** The strip must never appear in the printed book or
+  key sheet (carry `no-print` and add a print-block `display: none`), and any
+  motion must be disabled under `prefers-reduced-motion`, matching the existing
+  skeleton treatment.
 
 ---
 
 ## Notes on this spec's provenance
 
-Built by expanding the planner's authoritative scope for EPIC 5 against the
-shipped EPIC 1 through EPIC 4 codebase (`src/vault.ts` with `SCHEMA_VERSION` 3 and
-forward-only `migrate`; `src/entries.ts` with `foldDraft`/`foldSealed`/`isSealed`/
-`unsealedEntries`/`bookEntries`; `src/seal.ts` with `SealedPayload`; `src/format.ts`;
-`src/template.ts` serialization; and the Preact UI in `src/ui/` with `App`, `Home`,
-`Editor`, `UnsealView`, `BookView`, and the existing `@media print` rules).
+Built by expanding the planner's authoritative scope for EPIC 6 against the
+shipped EPIC 1 through EPIC 5 codebase: `src/vault.ts` (which already declares
+`firstRunDone` and defaults it in `emptyVault`/`parseVault`), `src/template.ts`
+(which already serializes it via `orderVault`), the App controller in
+`src/ui/App.tsx` with `runSave`/`saveInterview`/`runSeal`/`applyResult`, the
+archive in `src/ui/Home.tsx`, the writing room in `src/ui/Editor.tsx` with its
+`SaveControls` and seal zone, the download-path `src/ui/BackupRitual.tsx`, and the
+seal surfaces `src/ui/SealDialog.tsx`/`src/ui/KeySheet.tsx`. The existing test
+fixtures already set `firstRunDone: true` to suppress a walkthrough that had not
+been built; this EPIC is what those fixtures were anticipating.
 
-One planning gap was found and resolved inside this EPIC's scope: no shipped
-screen sets `child.birthDate` (it exists only in the model and the demo sample),
-and the plan's "Settings" screen has no owning EPIC. Because the interview cannot
-derive an age or fire a birthday nudge without a birth date, this spec folds a
-minimal birth-date capture into the interview flow (birth date required, name
-optional, shown only when missing). This is the smallest change that makes AC1,
-AC2, and AC5 provable, and it stays inside the ritual unit rather than building a
-general settings surface (a Non-Goal). This is reported to the owner as factory
-feedback so a future Settings EPIC, if desired, is a deliberate decision rather
-than an accident. No DEPLOY / STAGING DEPLOY CONTRACT block was present in this
+No planning gap required resolving inside this EPIC. `firstRunDone` was left in
+the model by an earlier EPIC precisely for this consumer, and the seeded demo
+already carries content, so the "reviewer not trapped" criterion is met
+structurally (this spec additionally sets the flag on the sample to make the
+intent explicit). No DEPLOY / STAGING DEPLOY CONTRACT block was present in this
 task's context, and this EPIC does not change the deploy.
