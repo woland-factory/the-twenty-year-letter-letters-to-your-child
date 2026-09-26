@@ -16,7 +16,6 @@ export default defineConfig({
     trace: "retain-on-failure",
     actionTimeout: 15_000,
     navigationTimeout: 15_000,
-    launchOptions: { args: ["--no-sandbox"] },
   },
   webServer: {
     // Production build of the site, then the static server. SEED_DEMO seeds the
@@ -28,9 +27,18 @@ export default defineConfig({
     env: { NODE_ENV: "production", SEED_DEMO: "true" },
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    // Firefox has no File System Access API, so it exercises the real
-    // download-and-replace path end to end.
+    // --no-sandbox is a Chromium flag: the shared-host container runs as a
+    // non-root user, so Chromium cannot use its sandbox. Firefox and WebKit
+    // reject the flag, so it stays scoped to Chromium.
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"], launchOptions: { args: ["--no-sandbox"] } },
+    },
+    // Firefox and WebKit have no File System Access API, so they exercise the
+    // real download-and-replace path end to end. Both must prove the
+    // crypto.subtle seal/unseal round-trip runs from file://, so the third
+    // named target engine (Safari/WebKit) is covered too.
     { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+    { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],
 });
