@@ -106,6 +106,8 @@ src/
   main.tsx            entry: capture the template, parse the vault, mount
   vault.ts            data model, defensive parsing, forward-only migration
   template.ts         self-carrying serialize (byte-stable app code)
+  photos.ts           client-side recompression, size math, photo budget
+  entries.ts          archive ordering and folding a draft back into the vault
   save/               capability detection, both save paths, generation logic
   ui/                 Preact components: home, editor, save states, dialogs
 site/                 landing page and its assembler
