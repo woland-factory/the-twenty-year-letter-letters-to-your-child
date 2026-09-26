@@ -1,0 +1,33 @@
+name: the-twenty-year-letter-letters-to-your-child-staging
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: the-twenty-year-letter-letters-to-your-child-staging-web
+    expose:
+      - "80"
+    environment:
+      # Site-only. Seeds the "try it live" artifact so a visitor sees a real
+      # letter without typing. Never set on production.
+      SEED_DEMO: "1"
+      # Site-only analytics and error tracking. Empty by default; injected at
+      # deploy time when granted. They never touch the artifact a family saves.
+      UMAMI_URL: "${UMAMI_URL:-}"
+      UMAMI_WEBSITE_ID: "${UMAMI_WEBSITE_ID:-}"
+      SENTRY_DSN: "${SENTRY_DSN:-}"
+    networks:
+      - default
+      - staging
+    mem_limit: 512m
+    oom_score_adj: 800
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+networks:
+  staging:
+    external: true
+    name: factory-staging-net

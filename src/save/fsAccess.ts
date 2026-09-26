@@ -34,16 +34,18 @@ export async function pickSaveFile(suggestedName: string): Promise<FileHandleLik
 
 // Read the generation the file on disk currently carries. Returns -1 when the
 // file is empty or unreadable, which we treat as "not newer than anything".
+// We parse the HTML and read the real #vault-data element rather than scan with
+// a regex: the app's own source (inlined into the file) contains marker strings
+// as text, and only the genuine element is a parseable node.
 export async function readDiskGeneration(handle: FileHandleLike): Promise<number> {
   try {
     const file = await handle.getFile();
     const text = await file.text();
     if (!text.trim()) return -1;
-    const match = text.match(
-      /<!--TYL:VAULT-DATA:BEGIN-->[\s\S]*?<script id="vault-data"[^>]*>([\s\S]*?)<\/script>[\s\S]*?<!--TYL:VAULT-DATA:END-->/,
-    );
-    const json = match ? match[1].replace(/\\u003c/g, "<") : text;
-    const disk = parseVault(json);
+    const doc = new DOMParser().parseFromString(text, "text/html");
+    const el = doc.getElementById("vault-data");
+    if (!el || !el.textContent) return -1;
+    const disk = parseVault(el.textContent);
     return disk.generation;
   } catch {
     return -1;

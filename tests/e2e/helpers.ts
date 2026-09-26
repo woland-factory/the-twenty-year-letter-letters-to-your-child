@@ -20,9 +20,19 @@ export const MOCK_FSA = `
   });
 `;
 
-// Extract the vault JSON from a serialized artifact string.
+// Extract the real vault JSON from a serialized artifact. The app's own source
+// is inlined into the file and mentions the vault-data markers as text, so we
+// pick the block whose content actually parses as JSON.
 export function extractVaultJson(html: string): string {
-  const m = html.match(/<script id="vault-data"[^>]*>([\s\S]*?)<\/script>/);
-  if (!m) throw new Error("no vault-data block");
-  return m[1];
+  const re = /<script id="vault-data"[^>]*>([\s\S]*?)<\/script>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    try {
+      JSON.parse(m[1]);
+      return m[1];
+    } catch {
+      // not the real vault block; keep looking
+    }
+  }
+  throw new Error("no valid vault-data block");
 }

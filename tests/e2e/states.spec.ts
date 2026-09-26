@@ -14,10 +14,13 @@ test("empty state names the product and offers the one action", async ({ page })
 
 test("a corrupted vault shows the designed error state, not a crash", async ({ page }) => {
   const html = readFileSync(ARTIFACT_PATH, "utf8");
+  // Target the real vault block (its content starts with {"schemaVersion), not
+  // the marker strings the app source mentions as text.
   const corrupted = html.replace(
-    /(<script id="vault-data"[^>]*>)[\s\S]*?(<\/script>)/,
+    /(<script id="vault-data"[^>]*>)\{"schemaVersion[\s\S]*?(<\/script>)/,
     "$1{ this is not valid json $2",
   );
+  if (corrupted === html) throw new Error("corruption did not apply");
   const badPath = join(tmpdir(), `tyl-corrupt-${Date.now()}.html`);
   writeFileSync(badPath, corrupted);
 

@@ -12,7 +12,7 @@
     "prepare-site": "node scripts/prepare-site.mjs",
     "test": "vitest run",
     "test:unit": "vitest run",
-    "test:e2e": "npm run build && playwright test",
+    "test:e2e": "playwright test",
     "lint": "eslint ."
   },
   "dependencies": {
