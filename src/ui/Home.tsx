@@ -5,6 +5,7 @@
 
 import type { Vault } from "../vault";
 import { formatCopyLine, formatEntryCount, formatSavedMoment } from "../format";
+import { sortedEntries } from "../entries";
 
 function IntegrityReadout({ vault, now }: { vault: Vault; now: Date }) {
   const count = formatEntryCount(vault.entries.length);
@@ -55,16 +56,32 @@ export function Home({
         <>
           <IntegrityReadout vault={vault} now={now} />
           <ul class="entries">
-            {vault.entries.map((entry) => (
-              <li key={entry.id}>
-                <button type="button" class="entry" onClick={() => onOpenEntry(entry.id)}>
-                  <div class="entry-title">{entry.title || "Untitled letter"}</div>
-                  <div class="entry-date">
-                    Written {formatSavedMoment(entry.createdAt, now)}
-                  </div>
-                </button>
-              </li>
-            ))}
+            {sortedEntries(vault.entries).map((entry) => {
+              const cover = entry.photos?.[0];
+              const title = entry.title || "Untitled letter";
+              return (
+                <li key={entry.id}>
+                  <button type="button" class="entry" onClick={() => onOpenEntry(entry.id)}>
+                    {cover && (
+                      <img
+                        class="entry-thumb"
+                        src={cover.dataUrl}
+                        alt={cover.caption || `Photo from your letter "${title}"`}
+                        width={cover.w}
+                        height={cover.h}
+                      />
+                    )}
+                    <span class="entry-text">
+                      <span class="entry-title">{title}</span>
+                      {entry.occasion && <span class="entry-occasion">{entry.occasion}</span>}
+                      <span class="entry-date">
+                        Written {formatSavedMoment(entry.createdAt, now)}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
           <button type="button" class="btn btn-primary btn-block" onClick={onWrite}>
             Write a letter
