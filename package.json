@@ -1,0 +1,30 @@
+{
+  "name": "the-twenty-year-letter",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && node scripts/prepare-site.mjs",
+    "build:artifact": "vite build",
+    "preview": "vite preview",
+    "start": "node scripts/serve-site.mjs",
+    "prepare-site": "node scripts/prepare-site.mjs",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:e2e": "npm run build && playwright test",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "preact": "10.24.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@preact/preset-vite": "2.9.3",
+    "eslint": "9.13.0",
+    "typescript": "5.6.3",
+    "vite": "6.0.11",
+    "vite-plugin-singlefile": "2.1.0",
+    "vitest": "2.1.9"
+  }
+}

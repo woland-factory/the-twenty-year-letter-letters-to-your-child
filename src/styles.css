@@ -1,0 +1,379 @@
+:root {
+  --paper: #faf7f2;
+  --paper-raised: #ffffff;
+  --ink: #2b2a28;
+  --ink-soft: #5f5b54;
+  --line: #e6e0d6;
+  --accent: #7a5c3e;
+  --accent-strong: #5d4630;
+  --accent-contrast: #ffffff;
+  --danger: #8a3b2e;
+  --focus: #3b6ea5;
+  --radius: 12px;
+  --maxw: 40rem;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.page {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 1.25rem 1.1rem 4rem;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  margin: 0 0 0.5rem;
+}
+
+h1 {
+  font-size: 1.6rem;
+}
+
+p {
+  margin: 0 0 0.75rem;
+}
+
+.muted {
+  color: var(--ink-soft);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0.7rem 1.15rem;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.04s ease, background-color 0.12s ease;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.btn-primary:hover {
+  background: var(--accent-strong);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--accent-strong);
+  border-color: var(--line);
+}
+
+.btn-secondary:hover {
+  background: #f1ebe1;
+}
+
+.btn[disabled] {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Header / integrity readout */
+.topbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.brand {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.readout {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.readout-line {
+  font-weight: 600;
+}
+
+.readout-copy {
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  margin-top: 0.15rem;
+}
+
+/* Entry list */
+.entries {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.entry {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.entry:hover {
+  border-color: var(--accent);
+}
+
+.entry-title {
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.entry-date {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+/* Empty / loading / error states */
+.state {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.75rem 1.4rem;
+  text-align: center;
+}
+
+.state h1,
+.state h2 {
+  margin-bottom: 0.35rem;
+}
+
+.state p {
+  color: var(--ink-soft);
+  max-width: 30rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.state .btn-primary {
+  margin-top: 0.9rem;
+}
+
+.state-error {
+  border-color: #e2c4bd;
+  background: #fbf3f1;
+}
+
+/* Boot skeleton (pre-JS and loading) */
+.boot {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 2rem 1.1rem;
+}
+
+.boot-title {
+  color: var(--ink-soft);
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.boot-skeleton span {
+  display: block;
+  height: 1.1rem;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #efe9df 25%, #f6f1e8 37%, #efe9df 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+  margin-bottom: 0.6rem;
+}
+
+.boot-skeleton span:nth-child(2) {
+  width: 80%;
+}
+.boot-skeleton span:nth-child(3) {
+  width: 55%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-skeleton span {
+    animation: none;
+  }
+}
+
+/* Editor */
+.field {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.field-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.8rem;
+}
+
+.textarea {
+  min-height: 45vh;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--accent);
+}
+
+.editor-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.save-status {
+  font-size: 0.95rem;
+  min-height: 1.4rem;
+}
+
+.save-status-saved {
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.save-status-error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Dialog */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 26, 22, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 10;
+}
+
+@media (min-width: 32rem) {
+  .backdrop {
+    align-items: center;
+  }
+}
+
+.dialog {
+  background: var(--paper-raised);
+  border-radius: 16px;
+  padding: 1.4rem 1.25rem;
+  max-width: 32rem;
+  width: 100%;
+}
+
+.dialog h2 {
+  margin-bottom: 0.5rem;
+}
+
+.dialog p {
+  color: var(--ink-soft);
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 1.1rem;
+}
+
+.identity {
+  background: var(--paper);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.75rem;
+  font-weight: 600;
+  margin: 0.75rem 0;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+}
+.skip:focus {
+  left: 1rem;
+  top: 1rem;
+  position: fixed;
+  background: var(--paper-raised);
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  z-index: 20;
+}
