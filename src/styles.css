@@ -141,6 +141,7 @@ p {
   font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: 0.01em;
+  margin: 0;
 }
 
 .readout {
@@ -184,6 +185,11 @@ p {
 
 .entry:hover {
   border-color: var(--accent);
+}
+
+/* Tapping an archive row gives the same immediate pressed response as a button. */
+.entry:active {
+  transform: translateY(1px);
 }
 
 .entry-title {
@@ -233,6 +239,14 @@ p {
   max-width: var(--maxw);
   margin: 0 auto;
   padding: 2rem 1.1rem;
+}
+
+/* The boot skeleton is the static first paint inside #app. Once the app mounts,
+   it renders alongside the skeleton rather than replacing it, so the skeleton is
+   hidden the moment real content is a sibling. While loading it is the only
+   child and stays visible, keeping first paint non-blank. */
+#app > .boot:not(:only-child) {
+  display: none;
 }
 
 .boot-title {
@@ -437,6 +451,18 @@ body.walk-open .page {
 
 .dialog p {
   color: var(--ink-soft);
+}
+
+/* The seal consequence sentence: the one irreversible action in the product, so
+   it reads as a real warning, not muted fine print. Full-strength ink and a
+   danger-colored accent inset carry the emphasis without relying on color alone. */
+.dialog p.seal-warning {
+  color: var(--ink);
+  font-weight: 600;
+  background: var(--paper);
+  border-left: 4px solid var(--danger);
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem;
 }
 
 .dialog-actions {

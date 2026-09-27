@@ -92,6 +92,7 @@ export function Home({
         </div>
       ) : (
         <>
+          <h1 class="visually-hidden">Your letters</h1>
           <IntegrityReadout vault={vault} now={now} />
           {nudge && !nudgeDismissed && (
             <BirthdayNudge onOpenInterview={onOpenInterview} onDismissNudge={onDismissNudge} />
@@ -160,6 +161,8 @@ export function Home({
                         alt={cover.caption || `Photo from your letter "${title}"`}
                         width={cover.w}
                         height={cover.h}
+                        loading="lazy"
+                        decoding="async"
                       />
                     )}
                     <span class="entry-text">

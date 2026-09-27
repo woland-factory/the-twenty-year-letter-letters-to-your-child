@@ -72,7 +72,7 @@ export function Editor({
   return (
     <main class="page" id="main">
       <div class="topbar">
-        <span class="brand">Write a letter</span>
+        <h1 class="brand">Write a letter</h1>
       </div>
 
       <label class="field">

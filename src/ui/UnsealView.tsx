@@ -123,7 +123,7 @@ export function UnsealView({
   return (
     <main class="page" id="main">
       <div class="topbar">
-        <span class="brand">Open a sealed letter</span>
+        <h1 class="brand">Open a sealed letter</h1>
       </div>
       {keyHint.trim() !== "" && <p class="unseal-hint">Where the key lives: {keyHint}</p>}
 

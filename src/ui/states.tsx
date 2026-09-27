@@ -16,11 +16,11 @@ export function Loading() {
 
 export function ErrorState({ heading, body }: { heading: string; body: string }) {
   return (
-    <div class="page">
+    <main class="page" id="main">
       <div class="state state-error" role="alert">
         <h1>{heading}</h1>
         <p>{body}</p>
       </div>
-    </div>
+    </main>
   );
 }

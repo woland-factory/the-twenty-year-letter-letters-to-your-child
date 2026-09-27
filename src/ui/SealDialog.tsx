@@ -47,7 +47,7 @@ export function SealDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="seal-title">Seal this letter?</h2>
-        <p id="seal-body">
+        <p id="seal-body" class="seal-warning">
           Sealing locks this letter. Only the printed key opens it. A lost key means this
           letter cannot be opened, and the book prints only unsealed letters.
         </p>
