@@ -42,4 +42,22 @@ test.describe("distribution site", () => {
     await expect(page.getByRole("heading", { name: "Write your first letter." })).toBeVisible();
     await expect(page.getByText("The night you came home")).toHaveCount(0);
   });
+
+  test("the landing page fits a 390px viewport with no horizontal scroll", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.goto("/");
+
+    await expect(
+      page.getByRole("heading", {
+        name: "Letters to your child, in a file that outlives any company.",
+      }),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Download your file" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Try it live" })).toBeVisible();
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth + 1,
+    );
+    expect(overflow, "the landing page overflows horizontally at 390px").toBe(false);
+  });
 });
